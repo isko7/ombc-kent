@@ -5,9 +5,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "init-db": "node scripts/init-db.js"
+    "init-db": "node scripts/init-db.js",
+    "get-smtp-token": "node scripts/get-o365-smtp-token.js",
+    "refresh-smtp-token": "node scripts/refresh-o365-smtp-token.js"
   },
   "dependencies": {
+    "@azure/msal-node": "^3.0.0",
     "dotenv": "^16.5.1",
     "express": "^4.21.2",
     "handlebars": "^4.7.8",

@@ -8,6 +8,7 @@ const nodemailer = require('nodemailer');
 const handlebars = require('handlebars');
 const mysql = require('mysql2/promise');
 const { PDFDocument } = require('pdf-lib');
+const { PublicClientApplication, ConfidentialClientApplication } = require('@azure/msal-node');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,7 +23,7 @@ const memoryVehicles = [
   { id: 2, make: 'Renault', model: 'Master', plate: 'EF-456-GH', capacity: '2.5 t' }
 ];
 let recipients = [
-  { id: 1, email: 'client@example.com', label: 'Client principal' },
+  { id: 1, email: 'ikilinc07@gmail.com', label: 'Client principal' },
   { id: 2, email: 'support@example.com', label: 'Support' }
 ];
 let templates = [];
@@ -685,6 +686,130 @@ app.post('/api/upload-image', upload.single('image'), (req, res) => {
   });
 });
 
+async function refreshSmtpAccessToken() {
+  const authType = (process.env.SMTP_AUTH_TYPE || 'password').toLowerCase();
+  if (authType !== 'oauth2') {
+    return process.env.SMTP_ACCESS_TOKEN || null;
+  }
+
+  const refreshToken = process.env.SMTP_REFRESH_TOKEN;
+  const clientId = process.env.SMTP_CLIENT_ID;
+  const clientSecret = process.env.SMTP_CLIENT_SECRET;
+  const tenantId = process.env.SMTP_TENANT_ID;
+  const expiresAt = Number(process.env.SMTP_ACCESS_TOKEN_EXPIRES_AT || 0);
+  const now = Date.now();
+
+  if (process.env.SMTP_ACCESS_TOKEN && expiresAt > now + 300000) {
+    return process.env.SMTP_ACCESS_TOKEN;
+  }
+
+  if (!refreshToken || !clientId || !tenantId) {
+    return process.env.SMTP_ACCESS_TOKEN || null;
+  }
+
+  try {
+    const msalConfig = {
+      auth: {
+        clientId,
+        authority: `https://login.microsoftonline.com/${tenantId}`
+      }
+    };
+
+    if (clientSecret) {
+      msalConfig.auth.clientSecret = clientSecret;
+    }
+
+    const app = clientSecret
+      ? new ConfidentialClientApplication(msalConfig)
+      : new PublicClientApplication(msalConfig);
+
+    const result = await app.acquireTokenByRefreshToken({
+      refreshToken,
+      scopes: ['https://outlook.office.com/SMTP.Send', 'offline_access', 'openid', 'profile']
+    });
+
+    if (!result || !result.accessToken) {
+      return process.env.SMTP_ACCESS_TOKEN || null;
+    }
+
+    const nextExpiresAt = result.expiresOn ? result.expiresOn.getTime() : now + 3600000;
+    process.env.SMTP_ACCESS_TOKEN = result.accessToken;
+    process.env.SMTP_ACCESS_TOKEN_EXPIRES_AT = String(nextExpiresAt);
+
+    const envPath = path.join(__dirname, '.env');
+    if (fs.existsSync(envPath)) {
+      let envContent = fs.readFileSync(envPath, 'utf8');
+      envContent = envContent.replace(/^SMTP_ACCESS_TOKEN=.*$/m, `SMTP_ACCESS_TOKEN=${result.accessToken}`);
+      envContent = envContent.replace(/^SMTP_ACCESS_TOKEN_EXPIRES_AT=.*$/m, `SMTP_ACCESS_TOKEN_EXPIRES_AT=${nextExpiresAt}`);
+      if (!/^SMTP_ACCESS_TOKEN=.*$/m.test(envContent)) {
+        envContent += `\nSMTP_ACCESS_TOKEN=${result.accessToken}\nSMTP_ACCESS_TOKEN_EXPIRES_AT=${nextExpiresAt}\n`;
+      }
+      fs.writeFileSync(envPath, envContent);
+    }
+
+    return result.accessToken;
+  } catch (error) {
+    console.warn('SMTP token refresh failed:', error.message || error);
+    return process.env.SMTP_ACCESS_TOKEN || null;
+  }
+}
+
+async function buildSmtpTransport() {
+  const host = process.env.SMTP_HOST || 'smtp.office365.com';
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
+  const authType = (process.env.SMTP_AUTH_TYPE || 'password').toLowerCase();
+  const user = process.env.SMTP_USER;
+
+  if (authType === 'oauth2') {
+    const accessToken = await refreshSmtpAccessToken();
+    if (!host || !user || !accessToken) {
+      throw new Error(
+        'OAuth2 SMTP is not configured. Set SMTP_HOST, SMTP_USER, SMTP_ACCESS_TOKEN and SMTP_AUTH_TYPE=oauth2 in your .env file. Optional values: SMTP_CLIENT_ID, SMTP_CLIENT_SECRET, SMTP_TENANT_ID, SMTP_REFRESH_TOKEN.'
+      );
+    }
+
+    const oauthConfig = {
+      type: 'OAuth2',
+      user,
+      accessToken,
+      refreshToken: process.env.SMTP_REFRESH_TOKEN,
+      expires: process.env.SMTP_ACCESS_TOKEN_EXPIRES_AT ? Number(process.env.SMTP_ACCESS_TOKEN_EXPIRES_AT) : 0
+    };
+
+    if (process.env.SMTP_CLIENT_ID) {
+      oauthConfig.clientId = process.env.SMTP_CLIENT_ID;
+    }
+    if (process.env.SMTP_CLIENT_SECRET) {
+      oauthConfig.clientSecret = process.env.SMTP_CLIENT_SECRET;
+    }
+    if (process.env.SMTP_TENANT_ID) {
+      oauthConfig.tenantId = process.env.SMTP_TENANT_ID;
+    }
+
+    return nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: oauthConfig
+    });
+  }
+
+  const pass = process.env.SMTP_PASS;
+  if (!host || !user || !pass) {
+    throw new Error(
+      'SMTP is not configured. Add SMTP_HOST, SMTP_USER and SMTP_PASS in your .env file. For Microsoft 365, you can also use SMTP_AUTH_TYPE=oauth2 with Azure app registration.'
+    );
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass }
+  });
+}
+
 app.post('/api/send-mail', async (req, res) => {
   const { to, subject, text } = req.body;
 
@@ -692,32 +817,18 @@ app.post('/api/send-mail', async (req, res) => {
     return res.status(400).json({ error: 'to, subject and text are required' });
   }
 
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (!host || !user || !pass) {
-    return res.status(400).json({
-      error: 'SMTP is not configured. Add SMTP_HOST, SMTP_USER and SMTP_PASS in your .env file.'
-    });
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: false,
-      auth: { user, pass }
-    });
+    const transporter = await buildSmtpTransport();
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
 
     await transporter.sendMail({
-      from: user,
+      from,
       to,
       subject,
       text
     });
 
-    return res.json({ ok: true });
+    return res.json({ ok: true, provider: 'smtp' });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
