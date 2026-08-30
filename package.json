@@ -1,0 +1,18 @@
+{
+  "name": "bc-kent-doc-generator",
+  "version": "1.0.0",
+  "description": "Generate, preview, store and email PDF documents from HTML templates.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "init-db": "node scripts/init-db.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "handlebars": "^4.7.8",
+    "multer": "^2.0.0",
+    "nodemailer": "^6.9.16",
+    "pg": "^8.17.0",
+    "puppeteer": "^23.11.1"
+  }
+}

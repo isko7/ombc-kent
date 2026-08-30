@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document Generator</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <h1>Document Builder</h1>
+        <div class="card">
+          <h2>Informations document</h2>
+          <label>Nom du document
+            <input id="documentName" value="Facture-001" />
+          </label>
+          <label>Numéro facture
+            <input id="invoiceNumber" value="FAC-2026-001" />
+          </label>
+          <label>Nom entreprise
+            <input id="companyName" value="Mon Entreprise" />
+          </label>
+          <label>Adresse entreprise
+            <input id="companyAddress" value="12 rue de la Paix, Paris" />
+          </label>
+          <label>Nom client
+            <input id="customerName" value="Jean Dupont" />
+          </label>
+          <label>Email client
+            <input id="customerEmail" value="jean@exemple.com" />
+          </label>
+          <label>Date
+            <input id="date" type="date" value="2026-08-30" />
+          </label>
+        </div>
+
+        <div class="card">
+          <h2>Montants</h2>
+          <label>Service
+            <input id="service1" value="Maintenance SaaS" />
+          </label>
+          <label>Quantité
+            <input id="qty1" value="1" />
+          </label>
+          <label>Prix unitaire
+            <input id="unitPrice1" value="1200" />
+          </label>
+          <label>Total ligne
+            <input id="total1" value="1200" />
+          </label>
+          <label>Total HT
+            <input id="totalHt" value="1200" />
+          </label>
+          <label>TVA %
+            <input id="tva" value="20" />
+          </label>
+          <label>Total TTC
+            <input id="totalTtc" value="1440" />
+          </label>
+        </div>
+
+        <div class="card">
+          <h2>Image</h2>
+          <input id="imageUpload" type="file" accept="image/*" />
+          <button id="uploadImageBtn" type="button">Ajouter image</button>
+          <img id="uploadedPreview" alt="image ajoutée" style="display:none; width:100%; margin-top:10px;" />
+        </div>
+      </aside>
+
+      <main class="main-panel">
+        <section class="toolbar">
+          <button id="previewBtn" type="button">Aperçu</button>
+          <button id="generateBtn" type="button" class="primary">Générer PDF</button>
+          <button id="saveBtn" type="button">Enregistrer le blob</button>
+          <button id="downloadBtn" type="button">Télécharger</button>
+        </section>
+
+        <div class="editor-grid">
+          <div class="template-panel card">
+            <h2>Template HTML</h2>
+            <textarea id="templateHtml" rows="26"></textarea>
+          </div>
+
+          <div class="preview-panel card">
+            <h2>Visualisation</h2>
+            <iframe id="previewFrame" title="Aperçu du document"></iframe>
+          </div>
+        </div>
+
+        <div class="mail-panel card">
+          <h2>Envoi de mail</h2>
+          <div class="mail-form">
+            <label>Destinataire
+              <select id="recipientSelect"></select>
+            </label>
+            <label>Objet
+              <input id="mailSubject" value="Votre document" />
+            </label>
+            <label>Corps du mail
+              <textarea id="mailBody" rows="6">Bonjour, veuillez trouver ci-joint votre document.</textarea>
+            </label>
+            <button id="sendMailBtn" type="button" class="primary">Envoyer le mail</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
