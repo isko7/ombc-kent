@@ -80,6 +80,66 @@ let logoUrl = '/uploads/logo-placeholder.png';
 let generatedPdfBase64 = '';
 let generatedDocumentName = '';
 
+async function loadTemplates() {
+  try {
+    const response = await fetch('/api/templates');
+    const templates = await response.json();
+    const select = document.getElementById('templateSelect');
+    select.innerHTML = '';
+
+    templates.forEach((template) => {
+      const option = document.createElement('option');
+      option.value = String(template.id);
+      option.textContent = template.name;
+      select.appendChild(option);
+    });
+
+    if (templates.length) {
+      templateEditor.value = templates[0].html_template || defaultTemplate;
+      renderPreview();
+    }
+  } catch (error) {
+    console.error('Templates load failed', error);
+  }
+}
+
+async function saveTemplate() {
+  const name = window.prompt('Nom du template ?', 'Facture standard');
+  if (!name) return;
+
+  const response = await fetch('/api/templates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      html_template: templateEditor.value
+    })
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || 'Erreur lors de l’enregistrement du template');
+    return;
+  }
+
+  alert(`Template enregistré : ${data.name}`);
+  loadTemplates();
+}
+
+async function loadSelectedTemplate() {
+  const templateId = document.getElementById('templateSelect').value;
+  if (!templateId) return;
+
+  const response = await fetch('/api/templates');
+  const templates = await response.json();
+  const selected = templates.find((template) => String(template.id) === String(templateId));
+
+  if (!selected) return;
+
+  templateEditor.value = selected.html_template || defaultTemplate;
+  renderPreview();
+}
+
 function readFormValues() {
   const payload = {};
   for (const field of formFields) {
@@ -240,8 +300,11 @@ document.getElementById('previewBtn').addEventListener('click', renderPreview);
 document.getElementById('generateBtn').addEventListener('click', generatePdf);
 document.getElementById('saveBtn').addEventListener('click', saveDocument);
 document.getElementById('downloadBtn').addEventListener('click', downloadDocument);
+document.getElementById('saveTemplateBtn').addEventListener('click', saveTemplate);
+document.getElementById('loadTemplateBtn').addEventListener('click', loadSelectedTemplate);
 document.getElementById('sendMailBtn').addEventListener('click', sendMail);
 document.getElementById('uploadImageBtn').addEventListener('click', uploadImage);
 
 loadRecipients();
+loadTemplates();
 renderPreview();
