@@ -11,8 +11,8 @@
     "express": "^4.21.2",
     "handlebars": "^4.7.8",
     "multer": "^2.0.0",
-    "nodemailer": "^6.9.16",
+    "nodemailer": "^9.0.6",
     "pg": "^8.17.0",
-    "puppeteer": "^23.11.1"
+    "puppeteer": "^25.9.0"
   }
 }
