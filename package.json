@@ -1,0 +1,24 @@
+{
+  "name": "ombc-kent-doc-generator",
+  "version": "1.0.0",
+  "description": "Generate, preview, store and email PDF documents from HTML templates.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "init-db": "node scripts/init-db.js",
+    "get-smtp-token": "node scripts/get-o365-smtp-token.js",
+    "refresh-smtp-token": "node scripts/refresh-o365-smtp-token.js"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^3.0.0",
+    "dotenv": "^16.5.1",
+    "express": "^4.21.2",
+    "handlebars": "^4.7.8",
+    "multer": "^2.0.0",
+    "mysql2": "^3.24.2",
+    "nodemailer": "^9.0.6",
+    "pdf-lib": "^1.17.1",
+    "pg": "^8.17.0",
+    "puppeteer": "^25.9.0"
+  }
+}
