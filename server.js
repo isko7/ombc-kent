@@ -15,6 +15,7 @@ let recipients = [
   { id: 1, email: 'client@example.com', label: 'Client principal' },
   { id: 2, email: 'support@example.com', label: 'Support' }
 ];
+let templates = [];
 
 fs.mkdirSync(uploadDir, { recursive: true });
 app.use(express.json({ limit: '10mb' }));
@@ -122,6 +123,15 @@ async function initDatabase() {
       );
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS templates (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        html_template TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     const recipientCheck = await pool.query('SELECT COUNT(*) AS count FROM recipients');
     if (Number(recipientCheck.rows[0].count) === 0) {
       await pool.query(
@@ -130,8 +140,19 @@ async function initDatabase() {
       );
     }
 
+    const templateCheck = await pool.query('SELECT COUNT(*) AS count FROM templates');
+    if (Number(templateCheck.rows[0].count) === 0) {
+      await pool.query(
+        'INSERT INTO templates (name, html_template) VALUES ($1, $2)',
+        ['Facture standard', defaultTemplate]
+      );
+    }
+
     const recipientRows = await pool.query('SELECT * FROM recipients ORDER BY id ASC');
     recipients = recipientRows.rows;
+
+    const templateRows = await pool.query('SELECT * FROM templates ORDER BY id ASC');
+    templates = templateRows.rows;
     console.log('PostgreSQL ready.');
   } catch (error) {
     dbReady = false;
@@ -164,6 +185,45 @@ function renderTemplate(templateHtml, data) {
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, dbReady });
+});
+
+app.get('/api/templates', async (req, res) => {
+  if (dbReady && pool) {
+    try {
+      const result = await pool.query('SELECT * FROM templates ORDER BY id ASC');
+      templates = result.rows;
+      return res.json(result.rows);
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  return res.json(templates.length ? templates : [{ id: 1, name: 'Facture standard', html_template: defaultTemplate }]);
+});
+
+app.post('/api/templates', async (req, res) => {
+  const { name, html_template } = req.body;
+
+  if (!name || !html_template) {
+    return res.status(400).json({ error: 'name and html_template are required' });
+  }
+
+  if (dbReady && pool) {
+    try {
+      const result = await pool.query(
+        'INSERT INTO templates (name, html_template) VALUES ($1, $2) RETURNING *',
+        [name, html_template]
+      );
+      templates = [...templates, result.rows[0]];
+      return res.json(result.rows[0]);
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  const newTemplate = { id: Date.now(), name, html_template };
+  templates.push(newTemplate);
+  return res.json(newTemplate);
 });
 
 app.get('/api/templates/default', (req, res) => {
