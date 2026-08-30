@@ -5,7 +5,6 @@ const multer = require('multer');
 const nodemailer = require('nodemailer');
 const handlebars = require('handlebars');
 const { Pool } = require('pg');
-const puppeteer = require('puppeteer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -276,6 +275,8 @@ app.post('/api/generate-pdf', async (req, res) => {
   try {
     const templateHtml = req.body.templateHtml || defaultTemplate;
     const html = renderTemplate(templateHtml, req.body);
+    const puppeteerModule = await import('puppeteer');
+    const puppeteer = puppeteerModule.default || puppeteerModule;
 
     const browser = await puppeteer.launch({
       headless: 'new',
