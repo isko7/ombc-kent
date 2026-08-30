@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
 const handlebars = require('handlebars');
@@ -12,7 +13,7 @@ const { PublicClientApplication, ConfidentialClientApplication } = require('@azu
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const uploadDir = path.join(__dirname, 'uploads');
+const uploadDir = path.join(os.tmpdir(), 'uploads');
 const memoryDocuments = [];
 const memoryDrivers = [
   { id: 1, name: 'Jean Martin', phone: '0600000001', license_number: 'AB12345' },
