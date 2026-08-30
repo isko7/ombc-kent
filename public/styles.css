@@ -131,3 +131,42 @@ button.primary {
   border-radius: 8px;
   border: 1px solid #d1d5db;
 }
+
+.attachment-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.attached-pdf-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #f9fafb;
+}
+
+.attached-pdf-item span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-list {
+  color: #d1d5db;
+  opacity: 0.9;
+  font-size: 13px;
+  margin-top: 10px;
+}
+
+.remove-pdf-btn {
+  background: #ef4444;
+  color: white;
+  padding: 6px 10px;
+  font-size: 12px;
+}

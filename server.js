@@ -1,20 +1,33 @@
+require('dotenv').config();
+
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
 const handlebars = require('handlebars');
-const { Pool } = require('pg');
+const mysql = require('mysql2/promise');
+const { PDFDocument } = require('pdf-lib');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const uploadDir = path.join(__dirname, 'uploads');
 const memoryDocuments = [];
+const memoryDrivers = [
+  { id: 1, name: 'Jean Martin', phone: '0600000001', license_number: 'AB12345' },
+  { id: 2, name: 'Pierre Dubois', phone: '0600000002', license_number: 'CD67890' }
+];
+const memoryVehicles = [
+  { id: 1, make: 'Mercedes', model: 'Sprinter', plate: 'AB-123-CD', capacity: '3.5 t' },
+  { id: 2, make: 'Renault', model: 'Master', plate: 'EF-456-GH', capacity: '2.5 t' }
+];
 let recipients = [
   { id: 1, email: 'client@example.com', label: 'Client principal' },
   { id: 2, email: 'support@example.com', label: 'Support' }
 ];
 let templates = [];
+let drivers = [...memoryDrivers];
+let vehicles = [...memoryVehicles];
 
 fs.mkdirSync(uploadDir, { recursive: true });
 app.use(express.json({ limit: '10mb' }));
@@ -23,163 +36,289 @@ app.use('/uploads', express.static(uploadDir));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const defaultTemplate = `
-  <!DOCTYPE html>
-  <html>
-    <head>
-      <meta charset="UTF-8" />
-      <style>
-        body { font-family: Arial, sans-serif; margin: 40px; color: #1f2937; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; padding-bottom: 20px; margin-bottom: 30px; }
-        .title { font-size: 30px; font-weight: 700; }
-        .company { font-size: 14px; color: #4b5563; text-align: right; }
-        .section { margin-top: 20px; }
-        .label { font-weight: 700; color: #111827; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; }
-        .totals { margin-top: 20px; text-align: right; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <div>
-          <div class="title">Facture</div>
-          <div>{{invoiceNumber}}</div>
-        </div>
-        <div class="company">
-          <img src="{{logoUrl}}" alt="Logo" style="max-height: 60px; margin-bottom: 10px;" />
-          <div>{{companyName}}</div>
-          <div>{{companyAddress}}</div>
-        </div>
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      body { font-family: Arial, sans-serif; margin: 30px; color: #1f2937; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #d1d5db; padding-bottom: 18px; margin-bottom: 20px; }
+      .title { font-size: 28px; font-weight: bold; }
+      .meta { font-size: 12px; color: #4b5563; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+      .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+      .label { font-weight: bold; }
+      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+      th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+      .totals { margin-top: 18px; text-align: right; }
+      img { max-height: 60px; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <div class="title">Ordre de mission</div>
+        <div class="meta">N° {{missionNumber}}</div>
       </div>
-
-      <div class="section">
-        <div><span class="label">Client :</span> {{customerName}}</div>
-        <div><span class="label">Email :</span> {{customerEmail}}</div>
-        <div><span class="label">Date :</span> {{date}}</div>
+      <div class="meta">
+        <img src="{{logoUrl}}" alt="Logo" /><br />
+        {{companyName}}<br />
+        {{companyAddress}}
       </div>
+    </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Service</th>
-            <th>Quantité</th>
-            <th>Prix unitaire</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>{{service1}}</td>
-            <td>{{qty1}}</td>
-            <td>{{unitPrice1}} €</td>
-            <td>{{total1}} €</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="totals">
-        <div><span class="label">Total HT :</span> {{totalHt}} €</div>
-        <div><span class="label">TVA :</span> {{tva}} %</div>
-        <div><span class="label">Total TTC :</span> {{totalTtc}} €</div>
+    <div class="grid">
+      <div class="card">
+        <div><span class="label">Client :</span> {{clientName}}</div>
+        <div><span class="label">Contact :</span> {{contactName}}</div>
+        <div><span class="label">Téléphone :</span> {{contactPhone}}</div>
       </div>
-
-      <div class="section">
-        <div class="label">Notes</div>
-        <p>{{notes}}</p>
+      <div class="card">
+        <div><span class="label">Chauffeur :</span> {{driverName}}</div>
+        <div><span class="label">Véhicule :</span> {{vehicleLabel}}</div>
+        <div><span class="label">Date :</span> {{missionDate}}</div>
       </div>
-    </body>
-  </html>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Départ</th>
+          <th>Arrivée</th>
+          <th>Distance</th>
+          <th>Heure départ</th>
+          <th>Heure arrivée</th>
+          <th>Observation</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each missionLines}}
+        <tr>
+          <td>{{this.from}}</td>
+          <td>{{this.to}}</td>
+          <td>{{this.distance}}</td>
+          <td>{{this.departureTime}}</td>
+          <td>{{this.arrivalTime}}</td>
+          <td>{{this.note}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <div><span class="label">Distance totale :</span> {{totalDistance}} km</div>
+      <div><span class="label">Observations :</span> {{notes}}</div>
+    </div>
+  </body>
+</html>
 `;
 
 const upload = multer({ storage: multer.memoryStorage() });
 let dbReady = false;
 let pool = null;
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/document_app';
+function getDbConfig() {
+  const defaultUrl = 'mysql://user:pass@dard.o2switch.net:3306/naqu7467_om';
+  const databaseUrl = process.env.DATABASE_URL || defaultUrl;
+  const url = new URL(databaseUrl);
+
+  return {
+    host: url.hostname,
+    port: Number(url.port || 3306),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: decodeURIComponent(url.pathname.replace(/^\//, '')),
+    ssl: { rejectUnauthorized: false },
+    connectionLimit: 5
+  };
+}
+
+function getDefaultMissionLines() {
+  return [
+    {
+      from: 'Paris',
+      to: 'Lyon',
+      distance: '465',
+      departureTime: '08:00',
+      arrivalTime: '12:30',
+      note: 'Trajet principal'
+    },
+    {
+      from: 'Lyon',
+      to: 'Grenoble',
+      distance: '120',
+      departureTime: '14:00',
+      arrivalTime: '15:30',
+      note: 'Livraison locale'
+    }
+  ];
+}
+
+function normalizeMissionData(data) {
+  const missionLines = Array.isArray(data.missionLines) && data.missionLines.length > 0
+    ? data.missionLines
+    : getDefaultMissionLines();
+
+  const totalDistance = missionLines.reduce((sum, item) => {
+    const distanceValue = Number(String(item.distance).replace(',', '.').replace(/[^0-9.]/g, '') || 0);
+    return sum + distanceValue;
+  }, 0);
+
+  return {
+    ...data,
+    logoUrl: data.logoUrl || '/uploads/logo-placeholder.png',
+    missionNumber: data.missionNumber || 'OM-2026-001',
+    companyName: data.companyName || 'BC Kent',
+    companyAddress: data.companyAddress || '10 Avenue de la Mission, Lille',
+    clientName: data.clientName || 'Client principal',
+    contactName: data.contactName || 'Mr. Durand',
+    contactPhone: data.contactPhone || '0600000000',
+    driverName: data.driverName || drivers[0]?.name || 'Chauffeur principal',
+    vehicleLabel: data.vehicleLabel || vehicles[0]?.plate || 'AB-123-CD',
+    missionDate: data.missionDate || new Date().toISOString().slice(0, 10),
+    notes: data.notes || 'Vérification des documents avant départ.',
+    missionLines,
+    totalDistance: totalDistance.toFixed(0)
+  };
+}
 
 async function initDatabase() {
   try {
-    pool = new Pool({ connectionString });
-    await pool.query('SELECT 1');
+    pool = mysql.createPool(getDbConfig());
+    await pool.query('SELECT 1 AS ok');
     dbReady = true;
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS recipients (
-        id SERIAL PRIMARY KEY,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         email VARCHAR(255) NOT NULL,
         label VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
     `);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS documents (
-        id SERIAL PRIMARY KEY,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
-        document_blob BYTEA NOT NULL,
+        document_data JSON,
+        document_blob LONGBLOB,
         mime_type VARCHAR(100) DEFAULT 'application/pdf',
-        created_at TIMESTAMP DEFAULT NOW()
-      );
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
     `);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS templates (
-        id SERIAL PRIMARY KEY,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
-        html_template TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
+        html_template LONGTEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
     `);
 
-    const recipientCheck = await pool.query('SELECT COUNT(*) AS count FROM recipients');
-    if (Number(recipientCheck.rows[0].count) === 0) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS drivers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        phone VARCHAR(50),
+        license_number VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS vehicles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        make VARCHAR(255),
+        model VARCHAR(255),
+        plate VARCHAR(50) NOT NULL UNIQUE,
+        capacity VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
+    `);
+
+    const [recipientCheck] = await pool.query('SELECT COUNT(*) AS count FROM recipients');
+    if (Number(recipientCheck[0].count) === 0) {
       await pool.query(
-        "INSERT INTO recipients (email, label) VALUES ($1, $2), ($3, $4)",
+        'INSERT INTO recipients (email, label) VALUES (?, ?), (?, ?)',
         ['client@example.com', 'Client principal', 'support@example.com', 'Support']
       );
     }
 
-    const templateCheck = await pool.query('SELECT COUNT(*) AS count FROM templates');
-    if (Number(templateCheck.rows[0].count) === 0) {
+    const [templateCheck] = await pool.query('SELECT COUNT(*) AS count FROM templates');
+    if (Number(templateCheck[0].count) === 0) {
       await pool.query(
-        'INSERT INTO templates (name, html_template) VALUES ($1, $2)',
-        ['Facture standard', defaultTemplate]
+        'INSERT INTO templates (name, html_template) VALUES (?, ?)',
+        ['Ordre de mission standard', defaultTemplate]
       );
     }
 
-    const recipientRows = await pool.query('SELECT * FROM recipients ORDER BY id ASC');
-    recipients = recipientRows.rows;
+    const [driversCheck] = await pool.query('SELECT COUNT(*) AS count FROM drivers');
+    if (Number(driversCheck[0].count) === 0) {
+      await pool.query(
+        'INSERT INTO drivers (name, phone, license_number) VALUES (?, ?, ?), (?, ?, ?)',
+        ['Jean Martin', '0600000001', 'AB12345', 'Pierre Dubois', '0600000002', 'CD67890']
+      );
+    }
 
-    const templateRows = await pool.query('SELECT * FROM templates ORDER BY id ASC');
-    templates = templateRows.rows;
-    console.log('PostgreSQL ready.');
+    const [vehiclesCheck] = await pool.query('SELECT COUNT(*) AS count FROM vehicles');
+    if (Number(vehiclesCheck[0].count) === 0) {
+      await pool.query(
+        'INSERT INTO vehicles (make, model, plate, capacity) VALUES (?, ?, ?, ?), (?, ?, ?, ?)',
+        ['Mercedes', 'Sprinter', 'AB-123-CD', '3.5 t', 'Renault', 'Master', 'EF-456-GH', '2.5 t']
+      );
+    }
+
+    const [recipientRows] = await pool.query('SELECT * FROM recipients ORDER BY id ASC');
+    recipients = recipientRows;
+    const [templateRows] = await pool.query('SELECT * FROM templates ORDER BY id ASC');
+    templates = templateRows;
+    const [driversRows] = await pool.query('SELECT * FROM drivers ORDER BY id ASC');
+    drivers = driversRows;
+    const [vehiclesRows] = await pool.query('SELECT * FROM vehicles ORDER BY id ASC');
+    vehicles = vehiclesRows;
+
+    console.log('MySQL ready.');
   } catch (error) {
     dbReady = false;
-    console.warn('PostgreSQL not available; continuing in fallback mode:', error.message);
+    console.warn('MySQL not available; continuing in fallback mode:', error.message);
   }
 }
 
 function renderTemplate(templateHtml, data) {
   const compiled = handlebars.compile(templateHtml || defaultTemplate);
-  const mergedData = {
+  const mergedData = normalizeMissionData({
     ...data,
     logoUrl: data.logoUrl || '/uploads/logo-placeholder.png',
-    invoiceNumber: data.invoiceNumber || 'FAC-001',
-    companyName: data.companyName || 'Mon Entreprise',
-    companyAddress: data.companyAddress || '12 rue de la Paix, Paris',
-    customerName: data.customerName || 'Jean Dupont',
-    customerEmail: data.customerEmail || 'jean@exemple.com',
-    date: data.date || new Date().toISOString().slice(0, 10),
-    service1: data.service1 || 'Service principal',
-    qty1: data.qty1 || '1',
-    unitPrice1: data.unitPrice1 || '1200',
-    total1: data.total1 || '1200',
-    totalHt: data.totalHt || '1200',
-    tva: data.tva || '20',
-    totalTtc: data.totalTtc || '1440',
-    notes: data.notes || 'Merci pour votre confiance.'
-  };
+    driverName: data.driverName || drivers[0]?.name || 'Chauffeur principal',
+    vehicleLabel: data.vehicleLabel || vehicles[0]?.plate || 'AB-123-CD'
+  });
   return compiled(mergedData);
+}
+
+async function mergePdfDocuments(mainPdfBuffer, attachments = []) {
+  if (!attachments.length) {
+    return mainPdfBuffer;
+  }
+
+  const mergedPdf = await PDFDocument.create();
+  const mainDocument = await PDFDocument.load(mainPdfBuffer);
+  const mainPages = await mergedPdf.copyPages(mainDocument, mainDocument.getPageIndices());
+  mainPages.forEach((page) => mergedPdf.addPage(page));
+
+  for (const attachment of attachments) {
+    if (!attachment || !attachment.base64) continue;
+
+    const binaryPdf = Buffer.from(attachment.base64, 'base64');
+    if (!binaryPdf.length) continue;
+
+    const attachmentDoc = await PDFDocument.load(binaryPdf);
+    const attachmentPages = await mergedPdf.copyPages(attachmentDoc, attachmentDoc.getPageIndices());
+    attachmentPages.forEach((page) => mergedPdf.addPage(page));
+  }
+
+  return Buffer.from(await mergedPdf.save());
 }
 
 app.get('/api/health', (req, res) => {
@@ -189,15 +328,15 @@ app.get('/api/health', (req, res) => {
 app.get('/api/templates', async (req, res) => {
   if (dbReady && pool) {
     try {
-      const result = await pool.query('SELECT * FROM templates ORDER BY id ASC');
-      templates = result.rows;
-      return res.json(result.rows);
+      const [result] = await pool.query('SELECT * FROM templates ORDER BY id ASC');
+      templates = result;
+      return res.json(result);
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }
   }
 
-  return res.json(templates.length ? templates : [{ id: 1, name: 'Facture standard', html_template: defaultTemplate }]);
+  return res.json(templates.length ? templates : [{ id: 1, name: 'Ordre de mission standard', html_template: defaultTemplate }]);
 });
 
 app.post('/api/templates', async (req, res) => {
@@ -209,12 +348,11 @@ app.post('/api/templates', async (req, res) => {
 
   if (dbReady && pool) {
     try {
-      const result = await pool.query(
-        'INSERT INTO templates (name, html_template) VALUES ($1, $2) RETURNING *',
-        [name, html_template]
-      );
-      templates = [...templates, result.rows[0]];
-      return res.json(result.rows[0]);
+      const [insertResult] = await pool.query('INSERT INTO templates (name, html_template) VALUES (?, ?)', [name, html_template]);
+      const [rows] = await pool.query('SELECT * FROM templates WHERE id = ?', [insertResult.insertId]);
+      const saved = rows[0];
+      templates = [...templates, saved];
+      return res.json(saved);
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }
@@ -225,15 +363,89 @@ app.post('/api/templates', async (req, res) => {
   return res.json(newTemplate);
 });
 
-app.get('/api/templates/default', (req, res) => {
-  res.json({ html: defaultTemplate });
+app.get('/api/drivers', async (req, res) => {
+  if (dbReady && pool) {
+    try {
+      const [result] = await pool.query('SELECT * FROM drivers ORDER BY id ASC');
+      drivers = result;
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+  return res.json(drivers);
+});
+
+app.post('/api/drivers', async (req, res) => {
+  const { name, phone, license_number } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' });
+  }
+
+  if (dbReady && pool) {
+    try {
+      const [insertResult] = await pool.query(
+        'INSERT INTO drivers (name, phone, license_number) VALUES (?, ?, ?)',
+        [name, phone || '', license_number || '']
+      );
+      const [rows] = await pool.query('SELECT * FROM drivers WHERE id = ?', [insertResult.insertId]);
+      const saved = rows[0];
+      drivers = [...drivers, saved];
+      return res.json(saved);
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  const newDriver = { id: Date.now(), name, phone: phone || '', license_number: license_number || '' };
+  drivers.push(newDriver);
+  return res.json(newDriver);
+});
+
+app.get('/api/vehicles', async (req, res) => {
+  if (dbReady && pool) {
+    try {
+      const [result] = await pool.query('SELECT * FROM vehicles ORDER BY id ASC');
+      vehicles = result;
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+  return res.json(vehicles);
+});
+
+app.post('/api/vehicles', async (req, res) => {
+  const { make, model, plate, capacity } = req.body;
+  if (!plate) {
+    return res.status(400).json({ error: 'plate is required' });
+  }
+
+  if (dbReady && pool) {
+    try {
+      const [insertResult] = await pool.query(
+        'INSERT INTO vehicles (make, model, plate, capacity) VALUES (?, ?, ?, ?)',
+        [make || '', model || '', plate, capacity || '']
+      );
+      const [rows] = await pool.query('SELECT * FROM vehicles WHERE id = ?', [insertResult.insertId]);
+      const saved = rows[0];
+      vehicles = [...vehicles, saved];
+      return res.json(saved);
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  const newVehicle = { id: Date.now(), make: make || '', model: model || '', plate, capacity: capacity || '' };
+  vehicles.push(newVehicle);
+  return res.json(newVehicle);
 });
 
 app.get('/api/recipients', async (req, res) => {
   if (dbReady && pool) {
     try {
-      const result = await pool.query('SELECT * FROM recipients ORDER BY id ASC');
-      return res.json(result.rows);
+      const [result] = await pool.query('SELECT * FROM recipients ORDER BY id ASC');
+      return res.json(result);
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }
@@ -243,18 +455,15 @@ app.get('/api/recipients', async (req, res) => {
 
 app.post('/api/recipients', async (req, res) => {
   const { email, label } = req.body;
-
   if (!email || !label) {
     return res.status(400).json({ error: 'email and label are required' });
   }
 
   if (dbReady && pool) {
     try {
-      const result = await pool.query(
-        'INSERT INTO recipients (email, label) VALUES ($1, $2) RETURNING *',
-        [email, label]
-      );
-      return res.json(result.rows[0]);
+      const [insertResult] = await pool.query('INSERT INTO recipients (email, label) VALUES (?, ?)', [email, label]);
+      const [rows] = await pool.query('SELECT * FROM recipients WHERE id = ?', [insertResult.insertId]);
+      return res.json(rows[0]);
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }
@@ -292,9 +501,12 @@ app.post('/api/generate-pdf', async (req, res) => {
     });
     await browser.close();
 
+    const attachments = Array.isArray(req.body.mergePdfs) ? req.body.mergePdfs : [];
+    const finalPdfBuffer = await mergePdfDocuments(pdfBuffer, attachments);
+
     res.json({
-      filename: `${(req.body.invoiceNumber || 'document').replace(/\s+/g, '-')}.pdf`,
-      base64: pdfBuffer.toString('base64')
+      filename: `${(req.body.missionNumber || 'ordre-mission').replace(/\s+/g, '-')}.pdf`,
+      base64: finalPdfBuffer.toString('base64')
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -304,10 +516,16 @@ app.post('/api/generate-pdf', async (req, res) => {
 app.get('/api/documents', async (req, res) => {
   if (dbReady && pool) {
     try {
-      const result = await pool.query(
-        'SELECT id, name, mime_type, created_at FROM documents ORDER BY created_at DESC'
+      const [result] = await pool.query(
+        'SELECT id, name, document_data, mime_type, created_at FROM documents ORDER BY created_at DESC'
       );
-      return res.json(result.rows);
+      return res.json(result.map((doc) => ({
+        id: doc.id,
+        name: doc.name,
+        data: doc.document_data,
+        mime_type: doc.mime_type,
+        created_at: doc.created_at
+      })));
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }
@@ -317,28 +535,54 @@ app.get('/api/documents', async (req, res) => {
     memoryDocuments.map((doc) => ({
       id: doc.id,
       name: doc.name,
+      data: doc.data || {},
       mime_type: doc.mimeType,
       created_at: doc.createdAt
     }))
   );
 });
 
-app.post('/api/documents', async (req, res) => {
-  const { name, pdfBase64 } = req.body;
-
-  if (!name || !pdfBase64) {
-    return res.status(400).json({ error: 'name and pdfBase64 are required' });
-  }
-
-  const buffer = Buffer.from(pdfBase64, 'base64');
+app.get('/api/documents/:id', async (req, res) => {
+  const id = Number(req.params.id);
 
   if (dbReady && pool) {
     try {
-      const result = await pool.query(
-        'INSERT INTO documents (name, document_blob, mime_type) VALUES ($1, $2, $3) RETURNING id, name',
-        [name, buffer, 'application/pdf']
+      const [result] = await pool.query(
+        'SELECT id, name, document_data, document_blob, mime_type FROM documents WHERE id = ?',
+        [id]
       );
-      return res.json({ ok: true, id: result.rows[0].id, name: result.rows[0].name, storedInDb: true });
+      if (!result[0]) {
+        return res.status(404).json({ error: 'Document non trouvé' });
+      }
+      return res.json({ ...result[0], data: result[0].document_data });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  const doc = memoryDocuments.find((item) => item.id === id);
+  if (!doc) {
+    return res.status(404).json({ error: 'Document non trouvé' });
+  }
+  return res.json(doc);
+});
+
+app.post('/api/documents', async (req, res) => {
+  const { name, pdfBase64, data } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' });
+  }
+
+  const buffer = pdfBase64 ? Buffer.from(pdfBase64, 'base64') : Buffer.from('');
+
+  if (dbReady && pool) {
+    try {
+      const [insertResult] = await pool.query(
+        'INSERT INTO documents (name, document_data, document_blob, mime_type) VALUES (?, ?, ?, ?)',
+        [name, JSON.stringify(data || {}), buffer, 'application/pdf']
+      );
+      return res.json({ ok: true, id: insertResult.insertId, name, storedInDb: true });
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }
@@ -348,6 +592,7 @@ app.post('/api/documents', async (req, res) => {
   memoryDocuments.push({
     id,
     name,
+    data: data || {},
     pdf: buffer,
     mimeType: 'application/pdf',
     createdAt: new Date().toISOString()
@@ -356,24 +601,60 @@ app.post('/api/documents', async (req, res) => {
   return res.json({ ok: true, id, name, storedInDb: false });
 });
 
+app.put('/api/documents/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const { name, pdfBase64, data } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' });
+  }
+
+  if (dbReady && pool) {
+    try {
+      const [result] = await pool.query(
+        'UPDATE documents SET name = ?, document_data = ?, document_blob = ? WHERE id = ?',
+        [name, JSON.stringify(data || {}), pdfBase64 ? Buffer.from(pdfBase64, 'base64') : null, id]
+      );
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Document non trouvé' });
+      }
+      return res.json({ ok: true, id, name, updated: true });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  const doc = memoryDocuments.find((item) => item.id === id);
+  if (!doc) {
+    return res.status(404).json({ error: 'Document non trouvé' });
+  }
+
+  doc.name = name;
+  doc.data = data || {};
+  if (pdfBase64) {
+    doc.pdf = Buffer.from(pdfBase64, 'base64');
+  }
+  return res.json({ ok: true, id: doc.id, name: doc.name, updated: true });
+});
+
 app.get('/api/documents/:id/download', async (req, res) => {
   const id = Number(req.params.id);
 
   if (dbReady && pool) {
     try {
-      const result = await pool.query(
-        'SELECT name, document_blob, mime_type FROM documents WHERE id = $1',
+      const [result] = await pool.query(
+        'SELECT name, document_blob, mime_type FROM documents WHERE id = ?',
         [id]
       );
 
-      if (!result.rows[0]) {
+      if (!result[0]) {
         return res.status(404).json({ error: 'Document not found' });
       }
 
-      const doc = result.rows[0];
+      const doc = result[0];
       res.setHeader('Content-Disposition', `attachment; filename="${doc.name}"`);
       res.setHeader('Content-Type', doc.mime_type);
-      return res.send(doc.document_blob);
+      return res.send(doc.document_blob || Buffer.from(''));
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }
@@ -386,7 +667,7 @@ app.get('/api/documents/:id/download', async (req, res) => {
 
   res.setHeader('Content-Disposition', `attachment; filename="${doc.name}"`);
   res.setHeader('Content-Type', doc.mimeType);
-  return res.send(doc.pdf);
+  return res.send(doc.pdf || Buffer.from(''));
 });
 
 app.post('/api/upload-image', upload.single('image'), (req, res) => {
@@ -453,4 +734,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = app;

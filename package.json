@@ -8,10 +8,13 @@
     "init-db": "node scripts/init-db.js"
   },
   "dependencies": {
+    "dotenv": "^16.5.1",
     "express": "^4.21.2",
     "handlebars": "^4.7.8",
     "multer": "^2.0.0",
+    "mysql2": "^3.24.2",
     "nodemailer": "^9.0.6",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.17.0",
     "puppeteer": "^25.9.0"
   }
