@@ -1,7 +1,7 @@
 {
   "engines": {
     "node": "22.x"
-  }
+  },
   "name": "ombc-kent-doc-generator",
   "version": "1.0.0",
   "description": "Generate, preview, store and email PDF documents from HTML templates.",
