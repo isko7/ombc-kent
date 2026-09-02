@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Nouveau client' if is_new else 'Modifier client' }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{{ 'Nouveau client' if is_new else client.name }}</h1>
+  </div>
+
+  <form method="post" class="card">
+    <div class="field">
+      <label>Nom *</label>
+      <input type="text" name="name" value="{{ client.name or '' }}" placeholder="Simplon Voyages" required>
+    </div>
+    <div class="field">
+      <label>Adresse</label>
+      <input type="text" name="address" value="{{ client.address or '' }}">
+    </div>
+    <div class="form-grid form-grid--3">
+      <div class="field">
+        <label>Code postal</label>
+        <input type="text" name="postal_code" value="{{ client.postal_code or '' }}">
+      </div>
+      <div class="field">
+        <label>Ville</label>
+        <input type="text" name="city" value="{{ client.city or '' }}">
+      </div>
+      <div class="field">
+        <label>Téléphone</label>
+        <input type="tel" name="phone" value="{{ client.phone or '' }}">
+      </div>
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" name="email" value="{{ client.email or '' }}">
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea name="notes">{{ client.notes or '' }}</textarea>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn--primary">Enregistrer</button>
+      <a href="{{ url_for('clients.list_clients_view') }}" class="btn btn--secondary">Annuler</a>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Véhicules{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Véhicules</h1>
+      <div class="sub">{{ vehicles|length }} véhicule{{ 's' if vehicles|length != 1 }}</div>
+    </div>
+    <a href="{{ url_for('vehicles.new_vehicle') }}" class="btn btn--primary">+ Nouveau véhicule</a>
+  </div>
+
+  <div class="card" style="padding:0;">
+    {% if vehicles %}
+    <table class="data-table">
+      <thead>
+        <tr><th>Nom</th><th>Immatriculation</th><th>Places</th><th>Statut</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for v in vehicles %}
+        <tr>
+          <td><a href="{{ url_for('vehicles.edit_vehicle', vehicle_id=v.id) }}"><strong>{{ v.name or '—' }}</strong></a></td>
+          <td>{{ v.plate }}</td>
+          <td>{{ v.seats or '—' }}</td>
+          <td>{% if v.active %}<span class="badge badge--envoyé">Actif</span>{% else %}<span class="badge badge--inactive">Inactif</span>{% endif %}</td>
+          <td class="row-actions">
+            <a href="{{ url_for('vehicles.edit_vehicle', vehicle_id=v.id) }}" class="btn btn--ghost btn--sm">Modifier</a>
+            <form method="post" action="{{ url_for('vehicles.delete_vehicle', vehicle_id=v.id) }}" style="display:inline"
+                  onsubmit="return confirm('Supprimer ce véhicule ?');">
+              <button type="submit" class="btn btn--ghost btn--sm" style="color:var(--err-text)">Supprimer</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div>Aucun véhicule pour le moment.</div>
+      <a href="{{ url_for('vehicles.new_vehicle') }}" class="btn btn--primary">Ajouter le premier véhicule</a>
+    </div>
+    {% endif %}
+  </div>
+{% endblock %}

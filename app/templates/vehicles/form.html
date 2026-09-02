@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Nouveau véhicule' if is_new else 'Modifier véhicule' }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{{ 'Nouveau véhicule' if is_new else (vehicle.name or vehicle.plate) }}</h1>
+  </div>
+
+  <form method="post" class="card">
+    <div class="form-grid form-grid--3">
+      <div class="field">
+        <label>Nom / repère interne</label>
+        <input type="text" name="name" value="{{ vehicle.name or '' }}" placeholder="Navette 2">
+      </div>
+      <div class="field">
+        <label>Immatriculation *</label>
+        <input type="text" name="plate" value="{{ vehicle.plate or '' }}" placeholder="FK-066-ME" required>
+      </div>
+      <div class="field">
+        <label>Places</label>
+        <input type="number" name="seats" min="1" value="{{ vehicle.seats or '' }}">
+      </div>
+    </div>
+    <div class="field">
+      <div class="checkbox-field">
+        <input type="checkbox" name="active" id="active" {{ 'checked' if vehicle.active|default(true) }}>
+        <label for="active" style="margin:0;">Véhicule actif</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea name="notes">{{ vehicle.notes or '' }}</textarea>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn--primary">Enregistrer</button>
+      <a href="{{ url_for('vehicles.list_vehicles_view') }}" class="btn btn--secondary">Annuler</a>
+    </div>
+  </form>
+{% endblock %}

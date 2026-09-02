@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Clients{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Clients</h1>
+      <div class="sub">Donneurs d'ordre — {{ clients|length }} client{{ 's' if clients|length != 1 }}</div>
+    </div>
+    <a href="{{ url_for('clients.new_client') }}" class="btn btn--primary">+ Nouveau client</a>
+  </div>
+
+  <div class="card" style="padding:0;">
+    {% if clients %}
+    <table class="data-table">
+      <thead>
+        <tr><th>Nom</th><th>Ville</th><th>Téléphone</th><th>Email</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for c in clients %}
+        <tr>
+          <td><a href="{{ url_for('clients.edit_client', client_id=c.id) }}"><strong>{{ c.name }}</strong></a></td>
+          <td>{{ c.city or '—' }}</td>
+          <td>{{ c.phone or '—' }}</td>
+          <td>{{ c.email or '—' }}</td>
+          <td class="row-actions">
+            <a href="{{ url_for('clients.edit_client', client_id=c.id) }}" class="btn btn--ghost btn--sm">Modifier</a>
+            <form method="post" action="{{ url_for('clients.delete_client', client_id=c.id) }}" style="display:inline"
+                  onsubmit="return confirm('Supprimer ce client ?');">
+              <button type="submit" class="btn btn--ghost btn--sm" style="color:var(--err-text)">Supprimer</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div>Aucun client pour le moment.</div>
+      <a href="{{ url_for('clients.new_client') }}" class="btn btn--primary">Ajouter le premier client</a>
+    </div>
+    {% endif %}
+  </div>
+{% endblock %}

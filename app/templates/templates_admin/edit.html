@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Éditer {{ tpl.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{{ tpl.name }}</h1>
+      <div class="sub">{{ tpl.type }} — version {{ tpl.version }} {{ '— actif' if tpl.is_active else '' }}</div>
+    </div>
+    <div class="btn-row" style="margin-top:0;">
+      <form method="post" action="{{ url_for('templates_admin.duplicate_template', template_id=tpl.id) }}">
+        <button type="submit" class="btn btn--secondary">Dupliquer</button>
+      </form>
+      {% if not tpl.is_active %}
+      <form method="post" action="{{ url_for('templates_admin.activate_template', template_id=tpl.id) }}">
+        <button type="submit" class="btn btn--secondary">Activer ce template</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="post" id="template-form" class="card">
+    <div class="field">
+      <label>Nom</label>
+      <input type="text" name="name" value="{{ tpl.name }}">
+    </div>
+    <div class="field">
+      <label>Source HTML / Jinja2</label>
+      <textarea name="definition_html" rows="26" style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12.5px;">{{ tpl.definition_html }}</textarea>
+      <div class="hint">
+        Variables disponibles :
+        {% if tpl.type == 'OM' %}
+          <code>driver_name</code>, <code>mission_day_label</code>, <code>mission_date_label</code>,
+          <code>legs</code> (liste de <code>start_time</code>/<code>end_time</code>/<code>vehicle</code>/<code>label</code>/<code>is_checkpoint</code>),
+          <code>remarks</code>, <code>company</code>, <code>logo_base64</code>, <code>om_legal_ref</code>.
+        {% else %}
+          <code>driver_name</code>, <code>motif</code>, <code>stops</code> (liste de <code>stop_type</code>/<code>date_label</code>/<code>time</code>/<code>address</code>/<code>city</code>),
+          <code>passenger_count</code>, <code>price</code>, <code>client</code>, <code>emission_date_label</code>,
+          <code>company</code>, <code>logo_base64</code>, <code>bc_legal_ref</code>.
+        {% endif %}
+      </div>
+    </div>
+    <div class="btn-row">
+      <button type="submit" class="btn btn--primary">Enregistrer</button>
+      <button type="submit" formaction="{{ url_for('templates_admin.preview_template', template_id=tpl.id) }}" formtarget="_blank" class="btn btn--secondary">
+        👁 Aperçu (données de démo)
+      </button>
+      <a href="{{ url_for('templates_admin.list_templates_view') }}" class="btn btn--ghost">Retour</a>
+    </div>
+  </form>
+{% endblock %}
