@@ -8,8 +8,9 @@ ci-dessous lit .env s'il existe, sans écraser des variables déjà
 définies dans l'environnement réel (donc les variables Vercel gagnent).
 """
 import os
+import re
 from pathlib import Path
-from urllib.parse import urlparse, unquote
+from urllib.parse import unquote
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -47,39 +48,52 @@ MAX_UPLOAD_MB = int(env("MAX_UPLOAD_MB", "8"))
 
 # --- Base de données (MySQL) -----------------------------------------
 # Fournir soit DATABASE_URL (mysql://user:pass@host:port/dbname), soit les
-# variables MYSQL_* individuelles. SSL activé par défaut (obligatoire chez
-# la plupart des hébergeurs MySQL managés) ; MYSQL_SSL=0 pour le désactiver
-# en local.
+# variables MYSQL_* individuelles. Les MYSQL_* évitent tout souci
+# d'encodage : à privilégier si le mot de passe contient @ ou des espaces.
+# SSL : MYSQL_SSL explicite (0/1) sinon activé sauf si l'hôte est local.
 def _ssl_enabled(host):
-    """SSL : MYSQL_SSL explicite sinon activé sauf si l'hôte est local."""
     flag = env("MYSQL_SSL")
     if flag is None:
         return host not in ("localhost", "127.0.0.1", "::1", "")
     return flag not in ("0", "false", "no", "")
 
 
+def _parse_db_url(url):
+    """Parseur tolérant : accepte les caractères spéciaux non encodés
+    (; ? : / +) dans le mot de passe, contrairement à urllib.parse qui
+    lève sur `:` ou `?`. Un « @ » dans le mot de passe reste ambigu ->
+    utiliser les variables MYSQL_* dans ce cas."""
+    rest = re.sub(r"^[a-zA-Z][a-zA-Z0-9+.\-]*://", "", url.strip())
+    creds, sep, hostpart = rest.rpartition("@")
+    if not sep:
+        creds, hostpart = "", rest
+    user, _, password = creds.partition(":")
+    hostport, _, dbname = hostpart.partition("/")
+    dbname = dbname.split("?", 1)[0]
+    host, _, port = hostport.partition(":")
+    return {
+        "host": unquote(host) or "localhost",
+        "port": int(port) if port.isdigit() else 3306,
+        "user": unquote(user) or "root",
+        "password": unquote(password) if re.search(r"%[0-9A-Fa-f]{2}", password) else password,
+        "database": unquote(dbname) or "kent",
+    }
+
+
 def _db_config():
     url = env("DATABASE_URL") or env("MYSQL_URL")
     if url:
-        p = urlparse(url)
-        host = p.hostname or "localhost"
-        return {
-            "host": host,
-            "port": p.port or 3306,
-            "user": unquote(p.username) if p.username else "root",
-            "password": unquote(p.password) if p.password else "",
-            "database": (p.path or "/").lstrip("/") or "kent",
-            "ssl": _ssl_enabled(host),
+        cfg = _parse_db_url(url)
+    else:
+        cfg = {
+            "host": env("MYSQL_HOST", "localhost"),
+            "port": int(env("MYSQL_PORT", "3306")),
+            "user": env("MYSQL_USER", "root"),
+            "password": env("MYSQL_PASSWORD", ""),
+            "database": env("MYSQL_DATABASE", "kent"),
         }
-    host = env("MYSQL_HOST", "localhost")
-    return {
-        "host": host,
-        "port": int(env("MYSQL_PORT", "3306")),
-        "user": env("MYSQL_USER", "root"),
-        "password": env("MYSQL_PASSWORD", ""),
-        "database": env("MYSQL_DATABASE", "kent"),
-        "ssl": _ssl_enabled(host),
-    }
+    cfg["ssl"] = _ssl_enabled(cfg["host"])
+    return cfg
 
 
 DB_CONFIG = _db_config()
