@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 14mm 15mm 16mm 15mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'DejaVu Sans', Arial, sans-serif;
+    color: #1a1a1a;
+    font-size: 10.5pt;
+    margin: 0;
+  }
+  .header { display: table; width: 100%; margin-bottom: 6mm; }
+  .header .logo-cell { display: table-cell; vertical-align: middle; width: 50%; }
+  .header .logo-cell img { height: 17mm; }
+  .header .company-cell { display: table-cell; vertical-align: middle; width: 50%; text-align: right; font-size: 9pt; line-height: 1.45; }
+  .header .company-cell .company-name { font-size: 12pt; font-weight: 700; color: #d32f2f; }
+  .title-block { text-align: center; margin-bottom: 5mm; }
+  .title-block h1 {
+    font-size: 18pt; letter-spacing: 1.5px; margin: 0 0 1.5mm 0; color: #111;
+    text-transform: uppercase;
+  }
+  .title-block .legal-ref { font-size: 8.5pt; color: #444; font-style: italic; }
+  .driver-band {
+    display: table; width: 100%; margin-bottom: 5mm;
+    background: #f4f4f4; border: 0.6pt solid #ccc; border-radius: 2pt;
+    padding: 3mm 4mm;
+  }
+  .driver-band .who { display: table-cell; font-size: 13pt; font-weight: 700; }
+  .driver-band .when { display: table-cell; text-align: right; font-size: 13pt; font-weight: 700; text-transform: capitalize; }
+  .section-label { font-weight: 700; font-size: 10.5pt; margin: 0 0 2mm 0; }
+  table.legs { width: 100%; border-collapse: collapse; margin-bottom: 6mm; }
+  table.legs th, table.legs td {
+    border: 0.6pt solid #999; padding: 1.8mm 2.5mm; font-size: 9.7pt; text-align: left;
+  }
+  table.legs th {
+    background: #222; color: #fff; font-weight: 700; text-transform: uppercase; font-size: 8.3pt;
+    letter-spacing: 0.3px;
+  }
+  table.legs td.time { white-space: nowrap; width: 15mm; }
+  table.legs td.vehicle { white-space: nowrap; width: 26mm; }
+  table.legs tr.pause td { font-style: italic; color: #555; background: #fafafa; }
+  table.legs tr.checkpoint td { font-weight: 700; }
+  .remarks { margin-top: 4mm; }
+  .remarks .box {
+    border: 0.6pt solid #999; min-height: 16mm; padding: 2.5mm; font-size: 9.7pt;
+    white-space: pre-wrap;
+  }
+  .footer-note {
+    margin-top: 8mm; font-size: 7.8pt; color: #666; text-align: center;
+  }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="logo-cell"><img src="data:image/png;base64,{{ logo_base64 }}" alt="Transports KENT"></div>
+    <div class="company-cell">
+      <div class="company-name">Transports KENT</div>
+      <div>{{ company.address }}</div>
+      <div>{{ company.postal_code }} {{ company.city }}</div>
+      <div>{{ company.phone }}</div>
+      <div>SIRET : {{ company.siret }}</div>
+    </div>
+  </div>
+
+  <div class="title-block">
+    <h1>Ordre de mission</h1>
+    <div class="legal-ref">Arrêté ministériel du {{ om_legal_ref }}</div>
+  </div>
+
+  <div class="driver-band">
+    <div class="who">{{ driver_name }}</div>
+    <div class="when">{{ mission_day_label }} {{ mission_date_label }}</div>
+  </div>
+
+  <div class="section-label">Mission :</div>
+  <table class="legs">
+    <thead>
+      <tr>
+        <th style="width:15mm;">Début</th>
+        <th style="width:15mm;">Fin</th>
+        <th style="width:26mm;">Véhicule</th>
+        <th>Trajet</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for leg in legs %}
+      <tr class="{{ 'pause' if not leg.vehicle else ('checkpoint' if leg.is_checkpoint else '') }}">
+        <td class="time">{{ leg.start_time }}</td>
+        <td class="time">{{ leg.end_time }}</td>
+        <td class="vehicle">{{ leg.vehicle or '' }}</td>
+        <td>{{ leg.label }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="remarks">
+    <div class="section-label">Remarques :</div>
+    <div class="box">{{ remarks or '' }}</div>
+  </div>
+
+  <div class="footer-note">Transports KENT &mdash; {{ company.address }}, {{ company.postal_code }} {{ company.city }} &mdash; SIRET {{ company.siret }}</div>
+
+</body>
+</html>

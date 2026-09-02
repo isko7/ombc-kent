@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Nouveau chauffeur' if is_new else 'Modifier chauffeur' }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{{ 'Nouveau chauffeur' if is_new else driver.last_name ~ ' ' ~ driver.first_name }}</h1>
+  </div>
+
+  <form method="post" class="card">
+    <div class="form-grid">
+      <div class="field">
+        <label>Nom *</label>
+        <input type="text" name="last_name" value="{{ driver.last_name or '' }}" required>
+      </div>
+      <div class="field">
+        <label>Prénom *</label>
+        <input type="text" name="first_name" value="{{ driver.first_name or '' }}" required>
+      </div>
+      <div class="field">
+        <label>Email *</label>
+        <input type="email" name="email" value="{{ driver.email or '' }}" required>
+        <div class="hint">Utilisé pour l'envoi automatique de l'OM + BC.</div>
+      </div>
+      <div class="field">
+        <label>Téléphone</label>
+        <input type="tel" name="phone" value="{{ driver.phone or '' }}">
+      </div>
+      <div class="field">
+        <label>N° de permis</label>
+        <input type="text" name="license_number" value="{{ driver.license_number or '' }}">
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <div class="checkbox-field">
+          <input type="checkbox" name="active" id="active" {{ 'checked' if driver.active|default(true) }}>
+          <label for="active" style="margin:0;">Chauffeur actif</label>
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea name="notes">{{ driver.notes or '' }}</textarea>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn--primary">Enregistrer</button>
+      <a href="{{ url_for('drivers.list_drivers_view') }}" class="btn btn--secondary">Annuler</a>
+    </div>
+  </form>
+{% endblock %}

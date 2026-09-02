@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Chauffeurs{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Chauffeurs</h1>
+      <div class="sub">{{ drivers|length }} chauffeur{{ 's' if drivers|length != 1 }}</div>
+    </div>
+    <a href="{{ url_for('drivers.new_driver') }}" class="btn btn--primary">+ Nouveau chauffeur</a>
+  </div>
+
+  <div class="card" style="padding:0;">
+    {% if drivers %}
+    <table class="data-table">
+      <thead>
+        <tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Statut</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for d in drivers %}
+        <tr>
+          <td><a href="{{ url_for('drivers.edit_driver', driver_id=d.id) }}"><strong>{{ d.last_name }} {{ d.first_name }}</strong></a></td>
+          <td>{{ d.email }}</td>
+          <td>{{ d.phone or '—' }}</td>
+          <td>{% if d.active %}<span class="badge badge--envoyé">Actif</span>{% else %}<span class="badge badge--inactive">Inactif</span>{% endif %}</td>
+          <td class="row-actions">
+            <a href="{{ url_for('drivers.edit_driver', driver_id=d.id) }}" class="btn btn--ghost btn--sm">Modifier</a>
+            <form method="post" action="{{ url_for('drivers.delete_driver', driver_id=d.id) }}" style="display:inline"
+                  onsubmit="return confirm('Supprimer ce chauffeur ?');">
+              <button type="submit" class="btn btn--ghost btn--sm" style="color:var(--err-text)">Supprimer</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div>Aucun chauffeur pour le moment.</div>
+      <a href="{{ url_for('drivers.new_driver') }}" class="btn btn--primary">Ajouter le premier chauffeur</a>
+    </div>
+    {% endif %}
+  </div>
+{% endblock %}

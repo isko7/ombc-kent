@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Ordres de mission{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Ordres de mission</h1>
+      <div class="sub">{{ missions|length }} résultat{{ 's' if missions|length != 1 }}</div>
+    </div>
+    <a href="{{ url_for('missions.new_mission') }}" class="btn btn--primary">+ Nouvel ordre de mission</a>
+  </div>
+
+  <form method="get" class="card" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;">
+    <div class="field" style="margin:0; min-width:180px;">
+      <label>Chauffeur</label>
+      <select name="driver_id">
+        <option value="">Tous</option>
+        {% for d in drivers %}
+        <option value="{{ d.id }}" {{ 'selected' if filters.driver_id == d.id }}>{{ d.last_name }} {{ d.first_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field" style="margin:0;">
+      <label>Du</label>
+      <input type="date" name="date_from" value="{{ filters.date_from or '' }}">
+    </div>
+    <div class="field" style="margin:0;">
+      <label>Au</label>
+      <input type="date" name="date_to" value="{{ filters.date_to or '' }}">
+    </div>
+    <div class="field" style="margin:0; min-width:160px;">
+      <label>Statut</label>
+      <select name="status">
+        <option value="">Tous</option>
+        <option value="brouillon" {{ 'selected' if filters.status == 'brouillon' }}>Brouillon</option>
+        <option value="finalisé" {{ 'selected' if filters.status == 'finalisé' }}>Finalisé</option>
+        <option value="envoyé" {{ 'selected' if filters.status == 'envoyé' }}>Envoyé</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn--secondary">Filtrer</button>
+    <a href="{{ url_for('missions.list_missions_view') }}" class="btn btn--ghost">Réinitialiser</a>
+  </form>
+
+  <div class="card" style="padding:0;">
+    {% if missions %}
+    <table class="data-table">
+      <thead>
+        <tr><th>Référence</th><th>Date</th><th>Chauffeur</th><th>Client</th><th>Statut</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for m in missions %}
+        <tr>
+          <td><a href="{{ url_for('missions.detail_mission', mission_id=m.id) }}"><strong>{{ m.reference }}</strong></a></td>
+          <td>{{ m.mission_date | fmt_date_long }} <span class="pill-note">{{ m.mission_date | day_label }}</span></td>
+          <td>{{ m.driver_last_name }} {{ m.driver_first_name }}</td>
+          <td>{{ m.client_name or '—' }}</td>
+          <td><span class="badge badge--{{ m.status }}">{{ m.status }}</span></td>
+          <td class="row-actions">
+            <a href="{{ url_for('missions.detail_mission', mission_id=m.id) }}" class="btn btn--ghost btn--sm">Ouvrir</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div>Aucun ordre de mission ne correspond aux filtres.</div>
+      <a href="{{ url_for('missions.new_mission') }}" class="btn btn--primary">Créer un ordre de mission</a>
+    </div>
+    {% endif %}
+  </div>
+{% endblock %}

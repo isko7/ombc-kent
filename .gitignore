@@ -1,0 +1,24 @@
+# Environnements Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Données locales (base SQLite + fichiers uploadés)
+data/
+*.db
+*.sqlite3
+
+# Config locale
+.env
+
+# Éditeurs / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Fichiers de test générés pendant le développement
+*.pdf
+!app/templates_data/*.pdf
+out_*.html

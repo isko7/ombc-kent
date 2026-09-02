@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 14mm 15mm 16mm 15mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'DejaVu Sans', Arial, sans-serif;
+    color: #1a1a1a;
+    font-size: 10.5pt;
+    margin: 0;
+  }
+  .header { display: table; width: 100%; margin-bottom: 6mm; }
+  .header .logo-cell { display: table-cell; vertical-align: middle; width: 50%; }
+  .header .logo-cell img { height: 17mm; }
+  .header .company-cell { display: table-cell; vertical-align: middle; width: 50%; text-align: right; font-size: 9pt; line-height: 1.45; }
+  .header .company-cell .company-name { font-size: 12pt; font-weight: 700; color: #d32f2f; }
+  .title-block { text-align: center; margin-bottom: 5mm; }
+  .title-block h1 {
+    font-size: 18pt; letter-spacing: 1.5px; margin: 0 0 1.5mm 0; color: #111;
+    text-transform: uppercase;
+  }
+  .title-block .legal-ref { font-size: 8.5pt; color: #444; font-style: italic; }
+
+  table.info { width: 100%; border-collapse: collapse; margin-bottom: 5mm; }
+  table.info td { border: 0.6pt solid #999; padding: 1.8mm 2.5mm; font-size: 9.7pt; }
+  table.info td.label { width: 55mm; font-weight: 700; background: #f4f4f4; }
+
+  table.stops { width: 100%; border-collapse: collapse; margin-bottom: 5mm; }
+  table.stops th, table.stops td {
+    border: 0.6pt solid #999; padding: 1.8mm 2.5mm; font-size: 9.7pt; text-align: left;
+  }
+  table.stops th {
+    background: #222; color: #fff; font-weight: 700; text-transform: uppercase; font-size: 8.3pt;
+    letter-spacing: 0.3px;
+  }
+  table.stops td.stop-type { font-weight: 700; white-space: nowrap; width: 30mm; }
+  table.stops td.date, table.stops td.heure { white-space: nowrap; width: 20mm; }
+  table.stops tr.depose td.stop-type { color: #555; }
+
+  table.tail { width: 100%; border-collapse: collapse; margin-bottom: 5mm; }
+  table.tail td { border: 0.6pt solid #999; padding: 1.8mm 2.5mm; font-size: 9.7pt; }
+  table.tail td.label { width: 55mm; font-weight: 700; background: #f4f4f4; }
+
+  .client-block .section-label {
+    font-weight: 700; font-size: 9.3pt; margin: 0 0 1.5mm 0;
+  }
+  table.client { width: 100%; border-collapse: collapse; }
+  table.client td { border: 0.6pt solid #999; padding: 1.8mm 2.5mm; font-size: 9.7pt; }
+  table.client td.label { width: 55mm; font-weight: 700; background: #f4f4f4; }
+
+  .footer-note { margin-top: 8mm; font-size: 7.8pt; color: #666; text-align: center; }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="logo-cell"><img src="data:image/png;base64,{{ logo_base64 }}" alt="Transports KENT"></div>
+    <div class="company-cell">
+      <div class="company-name">Transports KENT</div>
+      <div>{{ company.address }}</div>
+      <div>{{ company.postal_code }} {{ company.city }}</div>
+      <div>{{ company.phone }}</div>
+      <div>SIRET : {{ company.siret }}</div>
+    </div>
+  </div>
+
+  <div class="title-block">
+    <h1>Billet collectif</h1>
+    <div class="legal-ref">Billet collectif (Arrêté ministériel du {{ bc_legal_ref }})</div>
+  </div>
+
+  <table class="info">
+    <tr><td class="label">Motif du déplacement :</td><td>{{ motif }}</td></tr>
+    <tr><td class="label">Nom du Conducteur :</td><td>{{ driver_name }}</td></tr>
+  </table>
+
+  <table class="stops">
+    <thead>
+      <tr>
+        <th style="width:30mm;">&nbsp;</th>
+        <th style="width:20mm;">Date</th>
+        <th style="width:20mm;">Heure</th>
+        <th>Adresse</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for stop in stops %}
+      <tr class="{{ 'depose' if stop.stop_type == 'depose' else '' }}">
+        <td class="stop-type">{{ 'Prise en charge :' if stop.stop_type == 'prise_en_charge' else 'Dépose :' }}</td>
+        <td class="date">{{ stop.date_label }}</td>
+        <td class="heure">{{ stop.time }}</td>
+        <td>{{ stop.address }}<br>{{ stop.city }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="tail">
+    <tr><td class="label">Nombre de voyageurs :</td><td>{{ passenger_count }}</td></tr>
+    <tr><td class="label">Prix du transport :</td><td>{{ price or '' }}</td></tr>
+  </table>
+
+  <div class="client-block">
+    <div class="section-label">Personne, Etablissement, Association ou Groupement pour le compte duquel le transport est ex&eacute;cut&eacute; :</div>
+    <table class="client">
+      <tr><td class="label">NOM :</td><td>{{ client.name if client else '' }}</td></tr>
+      <tr><td class="label">Adresse :</td><td>{{ client.address if client else '' }}</td></tr>
+      <tr><td class="label">CP :</td><td>{{ client.postal_code if client else '' }}</td></tr>
+      <tr><td class="label">Ville :</td><td>{{ client.city if client else '' }}</td></tr>
+      <tr><td class="label">T&eacute;l&eacute;phone/Email :</td><td>{{ client.phone if client else '' }}</td></tr>
+      <tr><td class="label">Date d'&eacute;mission</td><td>{{ emission_date_label }}</td></tr>
+    </table>
+  </div>
+
+  <div class="footer-note">Transports KENT &mdash; {{ company.address }}, {{ company.postal_code }} {{ company.city }} &mdash; SIRET {{ company.siret }}</div>
+
+</body>
+</html>
