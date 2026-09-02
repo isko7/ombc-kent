@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Templates{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Templates OM &amp; BC</h1>
+      <div class="sub">Le HTML/Jinja2 ci-dessous est stocké en base et sert à générer les PDF. Un seul template actif par type à la fois.</div>
+    </div>
+  </div>
+
+  {% for label, tpls in [("Ordre de Mission", om_templates), ("Billet Collectif", bc_templates)] %}
+  <div class="card">
+    <h2>{{ label }}</h2>
+    {% if tpls %}
+    <table class="data-table">
+      <thead><tr><th>Nom</th><th>Version</th><th>Mis à jour</th><th>Statut</th><th></th></tr></thead>
+      <tbody>
+        {% for t in tpls %}
+        <tr>
+          <td><a href="{{ url_for('templates_admin.edit_template', template_id=t.id) }}"><strong>{{ t.name }}</strong></a></td>
+          <td>v{{ t.version }}</td>
+          <td>{{ t.updated_at }}</td>
+          <td>{% if t.is_active %}<span class="badge badge--envoyé">Actif</span>{% else %}<span class="badge badge--inactive">Inactif</span>{% endif %}</td>
+          <td class="row-actions">
+            <a href="{{ url_for('templates_admin.edit_template', template_id=t.id) }}" class="btn btn--ghost btn--sm">Modifier</a>
+            {% if not t.is_active %}
+            <form method="post" action="{{ url_for('templates_admin.activate_template', template_id=t.id) }}" style="display:inline">
+              <button type="submit" class="btn btn--ghost btn--sm">Activer</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">Aucun template {{ label }} — lancez `python seed.py` pour créer les templates par défaut.</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+{% endblock %}

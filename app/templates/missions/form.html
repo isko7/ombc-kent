@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Nouvel ordre de mission' if is_new else 'Modifier ' ~ mission.reference }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{{ 'Nouvel ordre de mission' if is_new else 'Modifier ' ~ (mission.reference or '') }}</h1>
+  </div>
+
+  <form method="post">
+    <div class="card">
+      <h2>Informations générales</h2>
+      <div class="form-grid">
+        <div class="field">
+          <label>Chauffeur *</label>
+          <select name="driver_id" required>
+            <option value="">— Choisir —</option>
+            {% for d in drivers %}
+            <option value="{{ d.id }}" {{ 'selected' if mission.driver_id == d.id }}>{{ d.last_name }} {{ d.first_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Date de la mission *</label>
+          <input type="date" name="mission_date" value="{{ mission.mission_date or '' }}" required>
+        </div>
+        <div class="field">
+          <label>Motif du déplacement</label>
+          <input type="text" name="motif" value="{{ mission.motif or 'Transport Occasionnel' }}">
+        </div>
+        <div class="field">
+          <label>Statut</label>
+          <select name="status">
+            <option value="brouillon" {{ 'selected' if mission.status == 'brouillon' }}>Brouillon</option>
+            <option value="finalisé" {{ 'selected' if mission.status == 'finalisé' }}>Finalisé</option>
+            <option value="envoyé" {{ 'selected' if mission.status == 'envoyé' }}>Envoyé</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Remarques (affichées sur l'OM)</label>
+        <textarea name="remarks">{{ mission.remarks or '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Client / donneur d'ordre <span style="font-weight:400; text-transform:none; letter-spacing:0;">(pour le Billet Collectif)</span></h2>
+      <div class="form-grid">
+        <div class="field">
+          <label>Client</label>
+          <select name="client_id">
+            <option value="">— Aucun —</option>
+            {% for c in clients %}
+            <option value="{{ c.id }}" {{ 'selected' if mission.client_id == c.id }}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+          <div class="hint">Gérer les clients depuis le menu "Clients".</div>
+        </div>
+        <div class="field">
+          <label>Date d'émission</label>
+          <input type="date" name="emission_date" value="{{ mission.emission_date or '' }}">
+        </div>
+        <div class="field">
+          <label>Prix du transport</label>
+          <input type="text" name="price" value="{{ mission.price or '' }}" placeholder="ex. 480 €">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Arrêts — Billet Collectif</h2>
+      <select id="default-vehicle-select" style="display:none;">
+        {% for v in vehicles %}<option value="{{ v.id }}">{{ v.plate }}</option>{% endfor %}
+      </select>
+      <table class="edit-rows" id="stops-table">
+        <thead>
+          <tr>
+            <th style="width:15%;">Type</th>
+            <th style="width:13%;">Date</th>
+            <th style="width:10%;">Heure</th>
+            <th style="width:26%;">Adresse</th>
+            <th style="width:18%;">Ville</th>
+            <th style="width:10%;">Voyageurs</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="stops-body">
+          {% for s in (mission.stops or []) %}
+          <tr>
+            <td>
+              <select name="stop_type[]">
+                <option value="prise_en_charge" {{ 'selected' if s.stop_type == 'prise_en_charge' }}>Prise en charge</option>
+                <option value="depose" {{ 'selected' if s.stop_type == 'depose' }}>Dépose</option>
+              </select>
+            </td>
+            <td><input type="date" name="stop_date[]" value="{{ s.stop_date or mission.mission_date or '' }}"></td>
+            <td><input type="text" name="stop_time[]" value="{{ s.stop_time or '' }}" placeholder="13:00"></td>
+            <td><input type="text" name="stop_address[]" value="{{ s.address or '' }}"></td>
+            <td><input type="text" name="stop_city[]" value="{{ s.city or '' }}"></td>
+            <td><input type="number" min="1" name="stop_passenger_count[]" value="{{ s.passenger_count or 1 }}"></td>
+            <td><button type="button" class="row-remove" title="Supprimer">&times;</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <button type="button" id="add-stop-row" class="btn btn--secondary btn--sm add-row-btn">+ Ajouter un arrêt</button>
+      <div class="hint" style="margin-top:8px;">Astuce : entrez d'abord la prise en charge puis les dépose (ou l'inverse), dans l'ordre chronologique — c'est ce qui alimente le tableau "Trajet" de l'OM ci-dessous via le bouton de génération.</div>
+    </div>
+
+    <div class="card">
+      <h2>Trajets — Ordre de Mission</h2>
+      <div class="btn-row" style="margin:0 0 14px;">
+        <button type="button" id="generate-legs-btn" class="btn btn--secondary btn--sm">⚡ Générer les trajets depuis les arrêts</button>
+      </div>
+      <table class="edit-rows" id="legs-table">
+        <thead>
+          <tr>
+            <th style="width:12%;">Début</th>
+            <th style="width:12%;">Fin</th>
+            <th style="width:18%;">Véhicule</th>
+            <th>Trajet</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="legs-body">
+          {% for l in (mission.legs or []) %}
+          <tr>
+            <td><input type="text" name="leg_start_time[]" value="{{ l.start_time or '' }}" placeholder="11:00"></td>
+            <td><input type="text" name="leg_end_time[]" value="{{ l.end_time or '' }}" placeholder="11:00"></td>
+            <td>
+              <select name="leg_vehicle_id[]">
+                <option value="">— (pause) —</option>
+                {% for v in vehicles %}
+                <option value="{{ v.id }}" {{ 'selected' if l.vehicle_id == v.id }}>{{ v.plate }}{{ ' — ' ~ v.name if v.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input type="text" name="leg_label[]" value="{{ l.label or '' }}"></td>
+            <td><button type="button" class="row-remove" title="Supprimer">&times;</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <button type="button" id="add-leg-row" class="btn btn--secondary btn--sm add-row-btn">+ Ajouter un trajet</button>
+      <div class="hint" style="margin-top:8px;">Un trajet dont l'heure de début = heure de fin est traité comme un point de contrôle (prise/fin de service). Laissez le véhicule vide pour une pause.</div>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn--primary">Enregistrer</button>
+      <a href="{{ url_for('missions.list_missions_view') }}" class="btn btn--secondary">Annuler</a>
+    </div>
+  </form>
+
+  <template id="stop-row-template">
+    <tr>
+      <td>
+        <select name="stop_type[]">
+          <option value="prise_en_charge">Prise en charge</option>
+          <option value="depose" selected>Dépose</option>
+        </select>
+      </td>
+      <td><input type="date" name="stop_date[]" value="{{ mission.mission_date or '' }}"></td>
+      <td><input type="text" name="stop_time[]" placeholder="13:00"></td>
+      <td><input type="text" name="stop_address[]"></td>
+      <td><input type="text" name="stop_city[]"></td>
+      <td><input type="number" min="1" name="stop_passenger_count[]" value="1"></td>
+      <td><button type="button" class="row-remove" title="Supprimer">&times;</button></td>
+    </tr>
+  </template>
+
+  <template id="leg-row-template">
+    <tr>
+      <td><input type="text" name="leg_start_time[]" placeholder="11:00"></td>
+      <td><input type="text" name="leg_end_time[]" placeholder="11:00"></td>
+      <td>
+        <select name="leg_vehicle_id[]">
+          <option value="">— (pause) —</option>
+          {% for v in vehicles %}
+          <option value="{{ v.id }}">{{ v.plate }}{{ ' — ' ~ v.name if v.name }}</option>
+          {% endfor %}
+        </select>
+      </td>
+      <td><input type="text" name="leg_label[]"></td>
+      <td><button type="button" class="row-remove" title="Supprimer">&times;</button></td>
+    </tr>
+  </template>
+
+  <script src="{{ url_for('static', filename='js/mission_form.js') }}"></script>
+{% endblock %}

@@ -14,6 +14,10 @@ Deux modes, choisis par SMTP_AUTH_METHOD dans .env :
   `msal` (voir requirements-optional.txt) — non testé dans ce
   bac à sable (pas d'accès réseau ici), mais suit le schéma standard
   documenté par Microsoft pour SMTP AUTH XOAUTH2.
+
+Un timeout explicite est posé sur la connexion SMTP : sans lui, un
+serveur SMTP injoignable (mauvais host, pare-feu, etc.) peut faire
+attendre la requête indéfiniment plutôt que d'échouer proprement.
 """
 import smtplib
 from email.message import EmailMessage
@@ -23,6 +27,8 @@ from app.config import (
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM_NAME, SMTP_FROM_EMAIL,
     SMTP_AUTH_METHOD, O365_TENANT_ID, O365_CLIENT_ID, O365_CLIENT_SECRET, O365_SENDER_EMAIL,
 )
+
+SMTP_TIMEOUT_SECONDS = 20
 
 
 class EmailError(Exception):
@@ -55,7 +61,7 @@ def _build_xoauth2_string(user, token):
 def _send_via_smtp(msg: EmailMessage):
     if SMTP_AUTH_METHOD == "oauth2_o365":
         token = _get_o365_access_token()
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
             server.ehlo()
             server.starttls()
             server.ehlo()
@@ -63,7 +69,7 @@ def _send_via_smtp(msg: EmailMessage):
             server.docmd("AUTH", "XOAUTH2 " + smtplib.base64.b64encode(auth_string.encode()).decode())
             server.send_message(msg)
     else:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
             server.ehlo()
             server.starttls()
             server.ehlo()

@@ -22,14 +22,21 @@ ATTACHMENT_POSITIONS = [
 ALLOWED_ATTACHMENT_EXT = {".pdf", ".png", ".jpg", ".jpeg"}
 
 
+def _at(lst, i, default=""):
+    return lst[i] if i < len(lst) else default
+
+
 def _parse_legs(form):
+    # Indexation "sûre" plutôt que zip() : si un champ optionnel est absent
+    # du formulaire pour certaines lignes, on ne désaligne pas les autres.
     starts = form.getlist("leg_start_time[]")
     ends = form.getlist("leg_end_time[]")
     vehicle_ids = form.getlist("leg_vehicle_id[]")
     labels = form.getlist("leg_label[]")
+    n = max(len(starts), len(ends), len(vehicle_ids), len(labels))
     legs = []
-    for s, e, v, l in zip(starts, ends, vehicle_ids, labels):
-        s, e, l = s.strip(), e.strip(), l.strip()
+    for i in range(n):
+        s, e, v, l = _at(starts, i).strip(), _at(ends, i).strip(), _at(vehicle_ids, i), _at(labels, i).strip()
         if not s and not e and not l:
             continue
         legs.append({
@@ -52,21 +59,23 @@ def _parse_stops(form):
     names = form.getlist("stop_passenger_name[]")
     phones = form.getlist("stop_passenger_phone[]")
     refs = form.getlist("stop_booking_ref[]")
+    n = len(addresses)
     stops = []
-    for t, d, tm, a, c, cnt, nm, ph, rf in zip(types, dates, times, addresses, cities, counts, names, phones, refs):
-        a = a.strip()
+    for i in range(n):
+        a = _at(addresses, i).strip()
         if not a:
             continue
+        cnt = _at(counts, i).strip()
         stops.append({
-            "stop_type": t if t in ("prise_en_charge", "depose") else "depose",
-            "stop_date": d or None,
-            "stop_time": tm.strip(),
+            "stop_type": _at(types, i) if _at(types, i) in ("prise_en_charge", "depose") else "depose",
+            "stop_date": _at(dates, i) or None,
+            "stop_time": _at(times, i).strip(),
             "address": a,
-            "city": c.strip() or None,
-            "passenger_count": int(cnt) if cnt.strip().isdigit() else 1,
-            "passenger_name": nm.strip() or None,
-            "passenger_phone": ph.strip() or None,
-            "booking_ref": rf.strip() or None,
+            "city": _at(cities, i).strip() or None,
+            "passenger_count": int(cnt) if cnt.isdigit() else 1,
+            "passenger_name": _at(names, i).strip() or None,
+            "passenger_phone": _at(phones, i).strip() or None,
+            "booking_ref": _at(refs, i).strip() or None,
         })
     return stops
 
@@ -129,7 +138,10 @@ def new_mission():
         flash("Ordre de mission créé.", "success")
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
     return render_template("missions/form.html", is_new=True, **_form_context({
-        "status": "brouillon", "motif": "Transport Occasionnel"
+        "status": "brouillon", "motif": "Transport Occasionnel",
+        "driver_id": None, "client_id": None, "om_template_id": None, "bc_template_id": None,
+        "mission_date": "", "emission_date": "", "price": "", "remarks": "",
+        "legs": [], "stops": [],
     }))
 
 

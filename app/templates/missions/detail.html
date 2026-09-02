@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}{{ mission.reference }}{% endblock %}
+{% block content %}
+  <div class="card mission-hero">
+    <div>
+      <div class="ref">{{ mission.reference }}</div>
+      <h1>{{ mission.driver.last_name }} {{ mission.driver.first_name }}</h1>
+      <span class="badge badge--{{ mission.status }}">{{ mission.status }}</span>
+    </div>
+    <div class="btn-row" style="margin-top:0;">
+      <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id, inline=1) }}" target="_blank" class="btn btn--secondary">👁 Aperçu PDF</a>
+      <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id) }}" class="btn btn--secondary">⬇ Télécharger OM+BC</a>
+      <a href="{{ url_for('missions.email_mission', mission_id=mission.id) }}" class="btn btn--primary">✉ Envoyer par email</a>
+      <a href="{{ url_for('missions.edit_mission', mission_id=mission.id) }}" class="btn btn--secondary">Modifier</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="meta-grid">
+      <div class="item"><div class="label">Date</div><div class="value">{{ mission.mission_date | fmt_date_long }} ({{ mission.mission_date | day_label }})</div></div>
+      <div class="item"><div class="label">Motif</div><div class="value">{{ mission.motif }}</div></div>
+      <div class="item"><div class="label">Client</div><div class="value">{{ mission.client.name if mission.client else '—' }}</div></div>
+      <div class="item"><div class="label">Prix</div><div class="value">{{ mission.price or '—' }}</div></div>
+    </div>
+    {% if mission.remarks %}
+      <div class="field" style="margin-top:6px;"><label>Remarques</label><div>{{ mission.remarks }}</div></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Trajets (Ordre de Mission)</h2>
+    {% if mission.legs %}
+    <table class="data-table">
+      <thead><tr><th>Début</th><th>Fin</th><th>Véhicule</th><th>Trajet</th></tr></thead>
+      <tbody>
+        {% for l in mission.legs %}
+        <tr>
+          <td>{{ l.start_time | fmt_time }}</td>
+          <td>{{ l.end_time | fmt_time }}</td>
+          <td>{{ l.vehicle_plate or '—' }}</td>
+          <td>{{ l.label }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">Aucun trajet renseigné. <a href="{{ url_for('missions.edit_mission', mission_id=mission.id) }}">Ajouter des trajets</a></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Arrêts (Billet Collectif)</h2>
+    {% if mission.stops %}
+    <table class="data-table">
+      <thead><tr><th></th><th>Date</th><th>Heure</th><th>Adresse</th><th>Voyageurs</th></tr></thead>
+      <tbody>
+        {% for s in mission.stops %}
+        <tr>
+          <td>{{ 'Prise en charge' if s.stop_type == 'prise_en_charge' else 'Dépose' }}</td>
+          <td>{{ s.stop_date | fmt_date_short }}</td>
+          <td>{{ s.stop_time | fmt_time }}</td>
+          <td>{{ s.address }}{{ ', ' ~ s.city if s.city }}</td>
+          <td>{{ s.passenger_count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">Aucun arrêt renseigné. <a href="{{ url_for('missions.edit_mission', mission_id=mission.id) }}">Ajouter des arrêts</a></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Pièces jointes <span style="font-weight:400; text-transform:none; letter-spacing:0;">(insérées dans le PDF final)</span></h2>
+    {% for a in mission.attachments %}
+    <div class="attachment-item">
+      <div>
+        <div class="name">{{ a.filename }}</div>
+        <div class="pos">
+          {% if a.insert_after_page == 0 %}Avant l'OM
+          {% elif a.insert_after_page >= 9999 %}Après le BC
+          {% else %}Après l'OM, avant le BC (page 2)
+          {% endif %}
+        </div>
+      </div>
+      <form method="post" action="{{ url_for('missions.delete_attachment', mission_id=mission.id, attachment_id=a.id) }}"
+            onsubmit="return confirm('Supprimer cette pièce jointe ?');">
+        <button type="submit" class="btn btn--ghost btn--sm" style="color:var(--err-text)">Retirer</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="hint" style="margin-bottom:14px;">Aucune pièce jointe. Idéal pour joindre le plan de dépose/ramassage d'origine en page 2.</div>
+    {% endfor %}
+
+    <form method="post" action="{{ url_for('missions.upload_attachment', mission_id=mission.id) }}" enctype="multipart/form-data"
+          style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-top:10px;">
+      <div class="field" style="margin:0;">
+        <label>Fichier (PDF, PNG, JPG)</label>
+        <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required>
+      </div>
+      <div class="field" style="margin:0; min-width:280px;">
+        <label>Position dans le document final</label>
+        <select name="insert_after_page">
+          {% for value, text in positions %}
+          <option value="{{ value }}" {{ 'selected' if value == 1 }}>{{ text }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn--secondary">Joindre</button>
+    </form>
+  </div>
+
+  {% if emails %}
+  <div class="card">
+    <h2>Historique des envois</h2>
+    <table class="data-table">
+      <thead><tr><th>Date</th><th>Destinataires</th><th>Objet</th><th>Statut</th></tr></thead>
+      <tbody>
+        {% for e in emails %}
+        <tr>
+          <td>{{ e.sent_at }}</td>
+          <td>{{ e.to_addresses }}</td>
+          <td>{{ e.subject }}</td>
+          <td>{% if e.status == 'sent' %}<span class="badge badge--envoyé">Envoyé</span>{% else %}<span class="badge" style="background:var(--err-bg); color:var(--err-text);">Échec</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('missions.delete_mission', mission_id=mission.id) }}"
+        onsubmit="return confirm('Supprimer définitivement cet ordre de mission ?');">
+    <button type="submit" class="btn btn--danger">Supprimer cet ordre de mission</button>
+  </form>
+{% endblock %}

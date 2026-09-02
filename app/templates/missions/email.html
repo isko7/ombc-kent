@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Envoyer {{ mission.reference }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>Envoyer l'OM + BC par email</h1>
+    <a href="{{ url_for('missions.detail_mission', mission_id=mission.id) }}" class="btn btn--secondary">← Retour à la mission</a>
+  </div>
+
+  <form method="post" class="card">
+    <div class="field">
+      <label>Destinataires *</label>
+      <input type="text" name="to" value="{{ driver.email }}" required>
+      <div class="hint">Adresses séparées par des virgules. Le chauffeur ({{ driver.email }}) est pré-rempli — vous pouvez l'enlever et/ou ajouter d'autres adresses.</div>
+    </div>
+    <div class="field">
+      <label>Copie (Cc)</label>
+      <input type="text" name="cc" placeholder="ex. exploitation@transports-kent.fr, ...">
+    </div>
+    <div class="field">
+      <label>Objet *</label>
+      <input type="text" name="subject" value="{{ default_subject }}" required>
+    </div>
+    <div class="field">
+      <label>Message</label>
+      <textarea name="body" rows="8">{{ default_body }}</textarea>
+    </div>
+    <div class="hint" style="margin-bottom:16px;">Le PDF (Ordre de Mission + pièces jointes + Billet Collectif) sera généré au moment de l'envoi et joint automatiquement.</div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn--primary">Envoyer</button>
+      <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id, inline=1) }}" target="_blank" class="btn btn--secondary">Voir le PDF avant d'envoyer</a>
+    </div>
+  </form>
+{% endblock %}
