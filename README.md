@@ -4,130 +4,158 @@ Application interne pour créer, stocker, modifier et envoyer les **Ordres
 de Mission (OM)** et **Billets Collectifs (BC)** de Transports KENT, à
 partir des chauffeurs, véhicules et clients enregistrés.
 
+Déployée sur **Vercel** (fonctions serverless), base **MySQL**.
+
 ## Ce que ça fait
 
-- **Chauffeurs / Véhicules / Clients** : liste + fiche détail + CRUD complet.
-  Les chauffeurs et véhicules alimentent des menus déroulants partout où
-  ils sont utilisés (plus de saisie libre).
-- **Ordres de mission** : un formulaire unique avec
-  - les **arrêts du Billet Collectif** (prises en charge / déposes, adresses, horaires, nb de voyageurs),
-  - les **trajets de l'Ordre de Mission** (Début / Fin / Véhicule / Trajet), avec un bouton
-    « Générer les trajets depuis les arrêts » qui pré-remplit le tableau OM à partir des arrêts BC
-    (vous ajustez ensuite pauses et libellés).
-- **Génération PDF** : un seul PDF = **OM (page 1) + pièces jointes + BC**, fusionnés automatiquement.
-  Vous pouvez joindre un ou plusieurs fichiers (PDF, PNG, JPG — typiquement le plan de dépose/ramassage
-  d'origine) et choisir où les insérer : avant l'OM, entre l'OM et le BC (page 2, par défaut — comme
-  dans vos documents actuels), ou après le BC.
-- **Envoi par email** : au chauffeur (email pré-rempli, modifiable) + destinataires libres en copie,
-  objet et corps personnalisables, PDF généré à la volée en pièce jointe.
-- **Templates OM / BC modifiables** : le HTML/Jinja2 qui génère les PDF est stocké **en base**, éditable
-  depuis Templates → (modifier le texte, les libellés, la mise en page) → Aperçu avec des données de
-  démo → Enregistrer / Activer. Vous pouvez dupliquer un template pour tester une variante sans toucher
-  à celui utilisé en production.
+- **Chauffeurs / Véhicules / Clients** : liste + fiche + CRUD complet. Ils
+  alimentent les menus déroulants partout où ils sont utilisés.
+- **Ordres de mission** : un formulaire unique avec les **arrêts du Billet
+  Collectif** (prises en charge / déposes, adresses, horaires, voyageurs) et
+  les **trajets de l'Ordre de Mission** (début / fin / véhicule / trajet),
+  avec un bouton « Générer les trajets depuis les arrêts ».
+- **Génération PDF** : un seul PDF = **OM + pièces jointes + BC**, fusionnés.
+  Pièces jointes (PDF/PNG/JPG) insérables avant l'OM, entre l'OM et le BC
+  (page 2, par défaut), ou après le BC.
+- **Envoi par email** : au chauffeur + destinataires en copie, objet et corps
+  personnalisables, PDF en pièce jointe, historique des envois.
+- **Templates OM / BC modifiables** : le HTML/Jinja2 qui génère les PDF est
+  stocké en base, éditable depuis *Templates* (aperçu sur données de démo,
+  duplication pour tester une variante).
 
-## Stack technique — et pourquoi
+## Stack technique
 
-L'application est écrite en **Python / Flask**. Le principe est simple :
-**gabarits HTML → PDF**, avec la base de données comme source unique des
-chauffeurs, véhicules, clients et missions.
+L'application est écrite en **Python / Flask**. Principe : **gabarits HTML
+→ PDF**, avec la base de données comme source unique des chauffeurs,
+véhicules, clients et missions.
 
-| Besoin | Choix | Pourquoi |
+| Besoin | Choix | Détail |
 |---|---|---|
-| Serveur web | **Flask** | Déjà disponible, simple, pas de build step côté front (pages rendues en Jinja2 + un peu de JS vanilla pour les lignes dynamiques). |
-| Base de données | **SQLite** (`sqlite3`, stdlib) | Zéro dépendance, un seul fichier. Le schéma (`app/db.py`) est écrit en SQL portable ; passer à PostgreSQL plus tard = remplacer `db.py` par un driver `psycopg` sans toucher au reste (`app/repo.py` isole tout le SQL). |
-| Templates OM/BC | **HTML + Jinja2**, stockés en base (table `templates`) | Éditables depuis l'interface, avec aperçu sur données de démo. ReportBro et RML restent des options — voir plus bas. |
-| HTML → PDF | **wkhtmltopdf** (binaire système, appelé en sous-processus) | Rendu fidèle CSS (tableaux, polices, logo en base64), aucune dépendance Python fragile. |
-| Fusion OM + pièces jointes + BC | **pypdf** | Standard, simple, gère PDF et images en pièce jointe. |
-| Email | **smtplib** (stdlib) + option **MSAL/OAuth2** pour Microsoft 365 | Flux O365 OAuth dans `email_service.py`, activable via `SMTP_AUTH_METHOD=oauth2_o365`. |
-
-**Sur ReportBro / RML** : non utilisés ici, mais l'architecture s'y prête si
-vous préférez un designer graphique pour une équipe non technique :
-`pdf_service.render_template_string()` est le seul point à remplacer par un
-appel à `reportbro-lib`, le reste (stockage en base, CRUD, fusion, email) ne
-change pas.
+| Hébergement | **Vercel** | `api/index.py` sert l'app Flask (WSGI) ; `vercel.json` réécrit toutes les routes vers cette fonction. |
+| Serveur web | **Flask** | Pas de build front : pages en Jinja2 + JS vanilla. |
+| Base de données | **MySQL** (`PyMySQL`, pur Python) | Connexion via `DATABASE_URL`. Schéma dans `app/db.py`, accès aux données isolé dans `app/repo.py`. |
+| Templates OM/BC | **HTML + Jinja2**, stockés en base (table `templates`) | Éditables depuis l'interface. |
+| HTML → PDF | **Chrome headless** (`api/render_pdf.js`, `@sparticuz/chromium`) | 2ᵉ fonction serverless Node, appelée en HTTP interne par Flask. Les règles CSS `@page` des templates sont respectées (`preferCSSPageSize`). En local : `wkhtmltopdf`. |
+| Fusion OM + PJ + BC | **pypdf** | Les pièces jointes sont stockées en base (`LONGBLOB`). |
+| Email | **smtplib** (stdlib) + option **MSAL/OAuth2** pour Microsoft 365 | `SMTP_AUTH_METHOD=basic` ou `oauth2_o365`. |
 
 ## Schéma de données
 
 ```
-drivers        chauffeurs (nom, prénom, email, tél, actif...)
-vehicles       véhicules (nom interne, immatriculation, places, actif...)
-clients        donneurs d'ordre (Simplon Voyages...), réutilisables
+drivers        chauffeurs
+vehicles       véhicules
+clients        donneurs d'ordre, réutilisables
 templates      gabarits OM/BC (type, html, version, actif)
 missions       un OM+BC (chauffeur, date, motif, client, statut...)
-mission_legs   lignes du tableau "Mission" de l'OM (début/fin/véhicule/trajet)
-mission_stops  lignes du tableau du BC (prise en charge/dépose, adresse, voyageurs)
-attachments    fichiers joints à une mission + position d'insertion
-email_log      historique des envois (destinataires, objet, statut)
+mission_legs   lignes du tableau « Mission » de l'OM
+mission_stops  lignes du tableau du BC
+attachments    fichiers joints (contenu binaire + position d'insertion)
+email_log      historique des envois
 ```
 
-Détail complet dans `app/db.py`.
+Détail complet dans `app/db.py` (`SCHEMA_STATEMENTS`).
 
-## Installation
+---
 
-**Prérequis :** Python 3.10+, et le binaire **wkhtmltopdf** :
+## Déploiement sur Vercel
 
-- macOS : `brew install --cask wkhtmltopdf`
-- Ubuntu/Debian : `sudo apt install wkhtmltopdf`
-- Windows : [installeur officiel](https://wkhtmltopdf.org/downloads.html)
+### 1. Base de données MySQL
+
+Provisionner un MySQL accessible depuis Internet (offres compatibles :
+PlanetScale, Aiven, Railway, un MySQL managé OVH/Scaleway, ou la marketplace
+Vercel). Récupérer une URL de connexion de la forme :
+
+```
+mysql://utilisateur:motdepasse@hote:3306/nom_de_base
+```
+
+### 2. Variables d'environnement Vercel
+
+Dans *Project → Settings → Environment Variables* :
+
+| Variable | Valeur |
+|---|---|
+| `DATABASE_URL` | l'URL MySQL ci-dessus |
+| `PDF_ENGINE` | `http` |
+| `PDF_RENDER_SECRET` | une chaîne aléatoire (partagée entre les 2 fonctions, définie une seule fois ici) |
+| `SECRET_KEY` | une chaîne aléatoire |
+| `SMTP_AUTH_METHOD` | `basic` (ou `oauth2_o365`) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | identifiants SMTP |
+| `SMTP_FROM_NAME` / `SMTP_FROM_EMAIL` | expéditeur affiché |
+| `COMPANY_*`, `OM_LEGAL_REF`, `BC_LEGAL_REF` | si différent des valeurs par défaut (voir `.env.example`) |
+
+Pour Microsoft 365 : ajouter `O365_TENANT_ID`, `O365_CLIENT_ID`,
+`O365_CLIENT_SECRET`, `O365_SENDER_EMAIL` et déclarer `msal` (voir
+`requirements-optional.txt`).
+
+> **Protection de déploiement** : si l'authentification Vercel (Deployment
+> Protection) est active, l'appel interne Flask → `/api/render_pdf` est
+> bloqué. Soit la désactiver, soit garder `PDF_RENDER_SECRET` **et** ajouter
+> l'en-tête de contournement via `VERCEL_AUTOMATION_BYPASS_SECRET`.
+
+### 3. Amorcer la base
+
+Une seule fois, depuis votre machine, en pointant sur la base de prod :
 
 ```bash
-cd ombc-kent
-python3 -m venv .venv && source .venv/bin/activate   # Windows : .venv\Scripts\activate
+python -m venv .venv && .venv\Scripts\activate      # (Linux/mac : source .venv/bin/activate)
 pip install -r requirements.txt
-cp .env.example .env        # puis éditez SMTP_USER / SMTP_PASS etc.
-python seed.py --demo       # crée les templates + un exemple complet (Yannis Martin, 15/09)
-python run.py
+DATABASE_URL="mysql://...:3306/kent" python seed.py --demo
 ```
 
-Ouvrez http://localhost:8000 — l'exemple de démo est prêt à être ouvert,
-généré en PDF et (si vous avez configuré le SMTP) envoyé par email.
+`seed.py` crée le schéma, installe les templates OM/BC par défaut, et (avec
+`--demo`) une mission d'exemple. Sans `--demo` : schéma + templates seulement.
+Le schéma se crée aussi tout seul au premier démarrage de l'app
+(`CREATE TABLE IF NOT EXISTS`), mais les templates par défaut, eux, viennent
+de `seed.py`.
 
-Sans `--demo`, `python seed.py` installe uniquement les deux templates
-par défaut (indispensables) sans données factices.
+### 4. Déployer
 
-## Configuration email
+`git push` sur la branche suivie par Vercel, ou `vercel --prod`.
 
-Deux modes dans `.env` (voir `.env.example` pour le détail complet) :
+---
 
-- `SMTP_AUTH_METHOD=basic` (par défaut) : `SMTP_HOST/PORT/USER/PASS` classiques — fonctionne avec
-  Gmail (mot de passe d'application), OVH, Infomaniak...
-- `SMTP_AUTH_METHOD=oauth2_o365` : pour Microsoft 365 / Exchange Online (authentification par mot de
-  passe désactivée par Microsoft). Nécessite `pip install -r requirements-optional.txt` (paquet `msal`)
-  et les identifiants d'une app enregistrée dans Entra ID (`O365_TENANT_ID`, `O365_CLIENT_ID`,
-  `O365_CLIENT_SECRET`, `O365_SENDER_EMAIL`).
+## Développement local
 
-Le code SMTP a un timeout de 20s : un serveur mail injoignable échoue proprement (message d'erreur
-affiché + inscrit dans l'historique) plutôt que de bloquer l'application.
+**Prérequis :** Python 3.10+, un MySQL local (ou distant), et le binaire
+**wkhtmltopdf** (rendu PDF local) :
 
-## Aller plus loin
+- Windows : `winget install wkhtmltopdf.wkhtmltox`
+- macOS : `brew install --cask wkhtmltopdf` · Debian/Ubuntu : `apt install wkhtmltopdf`
 
-- **PostgreSQL** : remplacer `sqlite3.connect(...)` dans `app/db.py` par un driver Postgres
-  (`psycopg`). Le SQL du schéma est déjà portable (types simples, pas de fonctions SQLite-only).
-- **Éditeur visuel de templates** : brancher [reportbro-designer](https://github.com/jobsta/reportbro-designer)
-  (JS) sur la page Templates, en gardant le stockage en base tel quel — ou migrer le rendu vers
-  ReportBro/RML comme expliqué plus haut.
-- **Détails passagers** : le schéma `mission_stops` a déjà des colonnes `passenger_name`,
-  `passenger_phone`, `booking_ref` (issues du plan de dépose/ramassage d'origine), pas encore exposées
-  dans le formulaire pour garder le tableau lisible — faciles à ajouter si utile.
-- **Déploiement** : `run.py` utilise le serveur de dev Flask. En production, servez l'app avec
-  `gunicorn` (ex. `gunicorn -w 4 -b 0.0.0.0:8000 run:app`) derrière un reverse proxy.
+```bash
+python -m venv .venv && .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env        # éditer DATABASE_URL, SMTP_*, etc.
+python seed.py --demo
+python run.py               # http://localhost:8000
+```
+
+En local, `PDF_ENGINE=wkhtmltopdf` (défaut) utilise le binaire système. Pour
+tester le rendu Chrome serverless en local, utiliser `vercel dev` avec
+`PDF_ENGINE=http`.
 
 ## Arborescence
 
 ```
+api/
+  index.py             point d'entrée Vercel (WSGI Flask)
+  render_pdf.js        fonction Node : HTML -> PDF (Chrome headless)
 app/
-  config.py            configuration (.env)
-  db.py                schéma SQLite + connexion
-  repo.py              accès aux données (CRUD, SQL brut)
-  pdf_service.py        rendu Jinja2 -> HTML -> wkhtmltopdf -> fusion pypdf
-  email_service.py      envoi SMTP (basic ou OAuth2 O365)
-  utils.py              formats de date/heure en français
-  routes/                blueprints Flask (drivers, vehicles, clients, missions, templates_admin)
-  templates/              pages Jinja2 (interface web)
-  templates_data/         sources HTML/Jinja2 par défaut de l'OM et du BC (utilisées par seed.py)
-  static/                 CSS, JS, logo
-seed.py                  amorçage (templates + option --demo)
-run.py                   point d'entrée
-requirements.txt / requirements-optional.txt
+  config.py            configuration (.env / variables Vercel)
+  db.py               connexion MySQL + schéma
+  repo.py             accès aux données (SQL brut)
+  pdf_service.py       rendu Jinja2 -> HTML -> PDF -> fusion pypdf
+  email_service.py     envoi SMTP (basic ou OAuth2 O365)
+  utils.py             formats de date/heure en français
+  routes/              blueprints Flask
+  templates/           pages Jinja2 (interface web)
+  templates_data/      sources HTML/Jinja2 par défaut de l'OM et du BC
+  static/              CSS, JS, logo
+seed.py                 amorçage (schéma + templates + option --demo)
+run.py                  serveur de dev Flask
+vercel.json             config des fonctions + réécritures
+requirements.txt        dépendances Python
+package.json            dépendances Node (fonction de rendu PDF)
 .env.example
 ```

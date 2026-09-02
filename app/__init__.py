@@ -1,6 +1,6 @@
 from flask import Flask, redirect, url_for
 
-from app.config import SECRET_KEY, MAX_UPLOAD_MB, UPLOADS_DIR
+from app.config import SECRET_KEY, MAX_UPLOAD_MB
 from app.db import init_db
 from app.utils import register_jinja_filters
 
@@ -10,8 +10,10 @@ def create_app():
     app.config["SECRET_KEY"] = SECRET_KEY
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 
-    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    init_db()
+    try:
+        init_db()
+    except Exception as e:  # pragma: no cover - visible dans les logs Vercel
+        app.logger.warning("init_db a échoué au démarrage : %s", e)
     register_jinja_filters(app)
 
     from app.routes.drivers import bp as drivers_bp
@@ -29,6 +31,10 @@ def create_app():
     @app.route("/")
     def index():
         return redirect(url_for("missions.list_missions_view"))
+
+    @app.route("/healthz")
+    def healthz():
+        return {"ok": True}
 
     @app.errorhandler(404)
     def not_found(e):
