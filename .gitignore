@@ -5,7 +5,13 @@ __pycache__/
 venv/
 env/
 
-# Données locales (base SQLite + fichiers uploadés)
+# Node (fonction de rendu PDF)
+node_modules/
+
+# Vercel
+.vercel/
+
+# Données locales éventuelles
 data/
 *.db
 *.sqlite3

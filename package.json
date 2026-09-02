@@ -1,0 +1,13 @@
+{
+  "name": "ombc-kent",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Fonction serverless de rendu HTML -> PDF (Chrome headless) pour l'app Flask OM+BC.",
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "140.0.0",
+    "puppeteer-core": "24.22.0"
+  }
+}

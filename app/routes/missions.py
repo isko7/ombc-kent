@@ -1,4 +1,3 @@
-import uuid
 from pathlib import Path
 
 from flask import (
@@ -7,7 +6,7 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from app import repo
-from app.config import UPLOADS_DIR, COMPANY
+from app.config import COMPANY
 from app.pdf_service import generate_mission_pdf, PdfGenerationError, POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC
 from app.email_service import send_mission_email, EmailError
 
@@ -208,13 +207,15 @@ def upload_attachment(mission_id):
     if ext not in ALLOWED_ATTACHMENT_EXT:
         flash("Formats acceptés : PDF, PNG, JPG.", "error")
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
-    stored_name = f"{uuid.uuid4().hex}{ext}"
-    file.save(UPLOADS_DIR / stored_name)
+    content = file.read()
+    if not content:
+        flash("Fichier vide.", "error")
+        return redirect(url_for("missions.detail_mission", mission_id=mission_id))
     insert_after_page = request.form.get("insert_after_page", type=int)
     if insert_after_page is None:
         insert_after_page = POSITION_AFTER_OM
     repo.add_attachment(
-        mission_id, secure_filename(file.filename), stored_name, file.mimetype, insert_after_page
+        mission_id, secure_filename(file.filename), content, file.mimetype, insert_after_page
     )
     flash("Pièce jointe ajoutée.", "success")
     return redirect(url_for("missions.detail_mission", mission_id=mission_id))
@@ -224,9 +225,6 @@ def upload_attachment(mission_id):
 def delete_attachment(mission_id, attachment_id):
     att = repo.get_attachment(attachment_id)
     if att and att["mission_id"] == mission_id:
-        path = UPLOADS_DIR / att["stored_filename"]
-        if path.exists():
-            path.unlink()
         repo.delete_attachment(attachment_id)
         flash("Pièce jointe supprimée.", "success")
     return redirect(url_for("missions.detail_mission", mission_id=mission_id))

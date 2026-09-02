@@ -1,7 +1,10 @@
 Flask>=3.0,<4.0
+PyMySQL>=1.1,<2.0
+cryptography>=42.0
 pypdf>=5.0,<6.0
 reportlab>=4.0,<5.0
 Pillow>=10.0,<12.0
 
-# Moteur HTML -> PDF : nécessite le binaire système wkhtmltopdf (pas un
-# paquet pip). Voir le README pour l'installation selon votre OS.
+# Rendu HTML -> PDF en local (PDF_ENGINE=wkhtmltopdf) : nécessite le binaire
+# système wkhtmltopdf. Sur Vercel (PDF_ENGINE=http) c'est la fonction Node
+# api/render_pdf.js qui s'en charge, aucun binaire à installer.

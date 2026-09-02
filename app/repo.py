@@ -2,8 +2,9 @@
 Couche d'accès aux données : une fonction par opération, en SQL brut.
 
 Pas d'ORM (pour rester sur des dépendances minimales) : le schéma est
-assez simple pour que ce soit lisible tel quel. `row_to_dict` convertit
-les sqlite3.Row en dict pour que les templates Jinja2 restent simples.
+assez simple pour que ce soit lisible tel quel. Le curseur MySQL renvoie
+déjà des dict (voir app/db.py) ; `row_to_dict` / `rows_to_dicts` restent
+là pour découpler les templates du pilote.
 """
 from datetime import datetime, date
 from app.db import get_db
@@ -253,11 +254,25 @@ def get_mission(mission_id):
             "SELECT * FROM mission_stops WHERE mission_id = ? ORDER BY position", (mission_id,)
         ).fetchall()
         mission["stops"] = rows_to_dicts(stops)
+        # Métadonnées seulement : le contenu (LONGBLOB) est chargé à la
+        # demande par le service PDF via list_attachment_contents().
         attachments = db.execute(
-            "SELECT * FROM attachments WHERE mission_id = ? ORDER BY position", (mission_id,)
+            """SELECT id, mission_id, filename, content_type, insert_after_page, position, created_at
+               FROM attachments WHERE mission_id = ? ORDER BY position""",
+            (mission_id,),
         ).fetchall()
         mission["attachments"] = rows_to_dicts(attachments)
         return mission
+
+
+def list_attachment_contents(mission_id):
+    """Pièces jointes d'une mission avec leur contenu binaire, triées."""
+    with get_db() as db:
+        return rows_to_dicts(
+            db.execute(
+                "SELECT * FROM attachments WHERE mission_id = ? ORDER BY position", (mission_id,)
+            ).fetchall()
+        )
 
 
 def create_mission(data):
@@ -329,15 +344,16 @@ def set_mission_status(mission_id, status):
 
 
 # ------------------------------------------------------------ attachments
-def add_attachment(mission_id, filename, stored_filename, content_type, insert_after_page):
+def add_attachment(mission_id, filename, content, content_type, insert_after_page):
+    """`content` : octets bruts du fichier (stockés en LONGBLOB)."""
     with get_db() as db:
         max_pos = db.execute(
             "SELECT COALESCE(MAX(position), -1) AS m FROM attachments WHERE mission_id = ?", (mission_id,)
         ).fetchone()["m"]
         cur = db.execute(
-            """INSERT INTO attachments (mission_id, filename, stored_filename, content_type,
+            """INSERT INTO attachments (mission_id, filename, content, content_type,
                insert_after_page, position) VALUES (?, ?, ?, ?, ?, ?)""",
-            (mission_id, filename, stored_filename, content_type, insert_after_page, max_pos + 1),
+            (mission_id, filename, content, content_type, insert_after_page, max_pos + 1),
         )
         return cur.lastrowid
 

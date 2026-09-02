@@ -7,9 +7,15 @@ Amorce la base de données :
     de mission complet, basés sur l'exemple réel MARTIN Yannis du
     15/09/2026, pour avoir tout de suite quelque chose à explorer
 
+La connexion MySQL est lue depuis .env / l'environnement (DATABASE_URL ou
+MYSQL_*), exactement comme l'application. Pour amorcer la base de prod
+depuis votre machine :
+
+    DATABASE_URL="mysql://user:pass@host:3306/kent" python seed.py --demo
+
 Usage :
-    python seed.py            # juste les templates
-    python seed.py --demo     # + données de démonstration
+    python seed.py            # schéma + templates par défaut
+    python seed.py --demo     # + un chauffeur/véhicule/client/mission de démo
 """
 import sys
 from pathlib import Path

@@ -14,17 +14,24 @@ Remplacer le moteur HTML -> PDF (WeasyPrint, Playwright/Chromium...) ne
 touche que render_html_to_pdf().
 """
 import base64
+import json
+import os
 import subprocess
+import urllib.request
 from io import BytesIO
 
 from jinja2 import Template
 from pypdf import PdfReader, PdfWriter
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from PIL import Image
 
 from app import repo
-from app.config import COMPANY, OM_LEGAL_REF, BC_LEGAL_REF, WKHTMLTOPDF_BIN, UPLOADS_DIR, BASE_DIR
+from app.config import (
+    COMPANY, OM_LEGAL_REF, BC_LEGAL_REF, BASE_DIR,
+    PDF_ENGINE, WKHTMLTOPDF_BIN, PDF_RENDER_URL, PDF_RENDER_SECRET,
+)
 from app.utils import fmt_time, fmt_date_short, fmt_date_long, day_label
 
 LOGO_PATH = BASE_DIR / "app" / "static" / "img" / "logo.png"
@@ -49,7 +56,18 @@ def get_logo_base64():
 
 
 def render_html_to_pdf(html: str) -> bytes:
-    """Convertit une chaîne HTML en octets PDF via wkhtmltopdf (stdin/stdout)."""
+    """Convertit une chaîne HTML en octets PDF.
+
+    PDF_ENGINE=wkhtmltopdf : binaire système local (développement).
+    PDF_ENGINE=http        : appelle la fonction serverless Node
+                             /api/render_pdf (Chrome headless) — Vercel.
+    """
+    if PDF_ENGINE == "http":
+        return _render_via_http(html)
+    return _render_via_wkhtmltopdf(html)
+
+
+def _render_via_wkhtmltopdf(html: str) -> bytes:
     proc = subprocess.run(
         [WKHTMLTOPDF_BIN, "--quiet", "--enable-local-file-access", "-", "-"],
         input=html.encode("utf-8"),
@@ -61,6 +79,39 @@ def render_html_to_pdf(html: str) -> bytes:
             f"wkhtmltopdf a échoué (code {proc.returncode}): {proc.stderr.decode('utf-8', 'ignore')[:500]}"
         )
     return proc.stdout
+
+
+def _pdf_render_base_url() -> str:
+    if PDF_RENDER_URL:
+        return PDF_RENDER_URL.rstrip("/")
+    vercel = os.environ.get("VERCEL_URL")
+    if vercel:
+        return f"https://{vercel}"
+    return "http://localhost:3000"
+
+
+def _render_via_http(html: str) -> bytes:
+    url = _pdf_render_base_url() + "/api/render_pdf"
+    payload = json.dumps({"html": html}).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if PDF_RENDER_SECRET:
+        headers["X-Render-Secret"] = PDF_RENDER_SECRET
+    req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            out = resp.read()
+    except Exception as e:
+        detail = ""
+        body = getattr(e, "read", None)
+        if callable(body):
+            try:
+                detail = " — " + body().decode("utf-8", "ignore")[:300]
+            except Exception:
+                pass
+        raise PdfGenerationError(f"Service de rendu PDF injoignable ({url}): {e}{detail}")
+    if not out.startswith(b"%PDF"):
+        raise PdfGenerationError(f"Rendu PDF invalide reçu: {out[:200]!r}")
+    return out
 
 
 def _default_passenger_count(stops):
@@ -131,13 +182,12 @@ def render_template_string(source_html: str, context: dict) -> bytes:
 
 
 def _attachment_to_pdf_bytes(attachment) -> bytes:
-    path = UPLOADS_DIR / attachment["stored_filename"]
+    content = attachment["content"]
     content_type = (attachment.get("content_type") or "").lower()
     if content_type == "application/pdf" or attachment["filename"].lower().endswith(".pdf"):
-        return path.read_bytes()
+        return bytes(content)
     # Image (jpg/png/...) -> on l'enveloppe dans une page A4 pour l'insérer proprement.
-    img = Image.open(path)
-    img = img.convert("RGB")
+    img = Image.open(BytesIO(content)).convert("RGB")
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     page_w, page_h = A4
@@ -147,7 +197,7 @@ def _attachment_to_pdf_bytes(attachment) -> bytes:
     draw_w, draw_h = img.width * scale, img.height * scale
     x = (page_w - draw_w) / 2
     y = (page_h - draw_h) / 2
-    c.drawImage(path, x, y, width=draw_w, height=draw_h)
+    c.drawImage(ImageReader(img), x, y, width=draw_w, height=draw_h)
     c.showPage()
     c.save()
     return buf.getvalue()
@@ -182,7 +232,7 @@ def generate_mission_pdf(mission_id: int):
     # BC (par défaut, ex. la feuille de référence qui devient la page 2
     # comme dans les documents d'origine), après le BC. À l'intérieur d'une
     # même zone, l'ordre choisi par l'utilisateur (position) est respecté.
-    attachments = sorted(mission["attachments"], key=lambda a: a["position"])
+    attachments = sorted(repo.list_attachment_contents(mission_id), key=lambda a: a["position"])
     before_om, between, after_bc = [], [], []
     for att in attachments:
         pages = list(PdfReader(BytesIO(_attachment_to_pdf_bytes(att))).pages)
