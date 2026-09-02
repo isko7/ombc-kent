@@ -27,43 +27,24 @@ partir des chauffeurs, véhicules et clients enregistrés.
 
 ## Stack technique — et pourquoi
 
-Le prototype existant (`api/`, `server.js`, Node/Express + Handlebars +
-Puppeteer + pdf-lib + nodemailer/msal) n'a pas pu être exploré en détail :
-GitHub bloque l'exploration automatisée des dossiers pour ce fetcher
-(`tree/...` renvoie *robots disallowed*), donc seuls `package.json`,
-`.env.example` et `server.js` (racine) ont pu être lus. Si vous avez un
-schéma existant (`scripts/init-db.js` ou équivalent) que vous voulez que
-je reprenne à l'identique, envoyez-le-moi et j'aligne le schéma ci-dessous.
-
-Cette version est réécrite en **Python / Flask**, pour une raison très
-concrète : dans mon environnement de développement (sandbox sans accès
-réseau npm), je ne pouvais ni installer `puppeteer` (téléchargement de
-Chromium) ni tester quoi que ce soit côté Node. Le sandbox Python, lui,
-avait déjà `Flask`, `reportlab`, `pypdf`, `Pillow`, ainsi que le binaire
-système `wkhtmltopdf` — de quoi construire et **tester réellement** toute
-la chaîne (génération, fusion PDF, upload, emails) plutôt que d'écrire du
-code Node à l'aveugle. Le principe reste le même que votre prototype :
-**gabarits HTML → PDF**, exactement ce que vous connaissez.
+L'application est écrite en **Python / Flask**. Le principe est simple :
+**gabarits HTML → PDF**, avec la base de données comme source unique des
+chauffeurs, véhicules, clients et missions.
 
 | Besoin | Choix | Pourquoi |
 |---|---|---|
 | Serveur web | **Flask** | Déjà disponible, simple, pas de build step côté front (pages rendues en Jinja2 + un peu de JS vanilla pour les lignes dynamiques). |
 | Base de données | **SQLite** (`sqlite3`, stdlib) | Zéro dépendance, un seul fichier. Le schéma (`app/db.py`) est écrit en SQL portable ; passer à PostgreSQL plus tard = remplacer `db.py` par un driver `psycopg` sans toucher au reste (`app/repo.py` isole tout le SQL). |
-| Templates OM/BC | **HTML + Jinja2**, stockés en base (table `templates`) | Vous avez cité HTML dans les outils que vous connaissez ; Jinja2 est l'équivalent Python de Handlebars. ReportBro et RML restent des options — voir plus bas. |
-| HTML → PDF | **wkhtmltopdf** (binaire système, appelé en sous-processus) | Rendu fidèle CSS (tableaux, polices, logo en base64), aucune dépendance Python fragile, testé de bout en bout avec vos 2 PDF d'exemple. |
-| Fusion OM + pièces jointes + BC | **pypdf** | Standard, simple, testé avec PDF et image en pièce jointe. |
-| Email | **smtplib** (stdlib) + option **MSAL/OAuth2** pour Microsoft 365 | Votre prototype avait déjà un flux O365 OAuth (`msal`, scripts `get-smtp-token`) — repris à l'identique en Python dans `email_service.py`, activable via `SMTP_AUTH_METHOD=oauth2_o365`. |
+| Templates OM/BC | **HTML + Jinja2**, stockés en base (table `templates`) | Éditables depuis l'interface, avec aperçu sur données de démo. ReportBro et RML restent des options — voir plus bas. |
+| HTML → PDF | **wkhtmltopdf** (binaire système, appelé en sous-processus) | Rendu fidèle CSS (tableaux, polices, logo en base64), aucune dépendance Python fragile. |
+| Fusion OM + pièces jointes + BC | **pypdf** | Standard, simple, gère PDF et images en pièce jointe. |
+| Email | **smtplib** (stdlib) + option **MSAL/OAuth2** pour Microsoft 365 | Flux O365 OAuth dans `email_service.py`, activable via `SMTP_AUTH_METHOD=oauth2_o365`. |
 
-**Sur ReportBro / RML** : je ne les ai pas utilisés ici. Le format JSON de
-ReportBro n'est fiable à écrire qu'avec son designer visuel (que je n'ai
-pas dans ce sandbox) ; RML (`z3c.rml`) est une bonne option mais ajoute une
-dépendance non testable ici faute de réseau. Le HTML/Jinja2 fait le même
-travail et j'ai pu le vérifier visuellement contre vos documents réels
-(voir captures dans la conversation). Si vous préférez malgré tout
-ReportBro (son designer graphique a un vrai intérêt pour une équipe non
-technique), l'architecture s'y prête : `pdf_service.render_template_string()`
-est le seul point à remplacer par un appel à `reportbro-lib`, le reste
-(stockage en base, CRUD, fusion, email) ne change pas.
+**Sur ReportBro / RML** : non utilisés ici, mais l'architecture s'y prête si
+vous préférez un designer graphique pour une équipe non technique :
+`pdf_service.render_template_string()` est le seul point à remplacer par un
+appel à `reportbro-lib`, le reste (stockage en base, CRUD, fusion, email) ne
+change pas.
 
 ## Schéma de données
 
