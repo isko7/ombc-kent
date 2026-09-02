@@ -50,31 +50,35 @@ MAX_UPLOAD_MB = int(env("MAX_UPLOAD_MB", "8"))
 # variables MYSQL_* individuelles. SSL activé par défaut (obligatoire chez
 # la plupart des hébergeurs MySQL managés) ; MYSQL_SSL=0 pour le désactiver
 # en local.
+def _ssl_enabled(host):
+    """SSL : MYSQL_SSL explicite sinon activé sauf si l'hôte est local."""
+    flag = env("MYSQL_SSL")
+    if flag is None:
+        return host not in ("localhost", "127.0.0.1", "::1", "")
+    return flag not in ("0", "false", "no", "")
+
+
 def _db_config():
     url = env("DATABASE_URL") or env("MYSQL_URL")
     if url:
         p = urlparse(url)
-        cfg = {
-            "host": p.hostname or "localhost",
+        host = p.hostname or "localhost"
+        return {
+            "host": host,
             "port": p.port or 3306,
             "user": unquote(p.username) if p.username else "root",
             "password": unquote(p.password) if p.password else "",
             "database": (p.path or "/").lstrip("/") or "kent",
+            "ssl": _ssl_enabled(host),
         }
-        ssl_flag = env("MYSQL_SSL")
-        if ssl_flag is None:
-            # Par défaut : SSL sauf si l'hôte est local.
-            cfg["ssl"] = cfg["host"] not in ("localhost", "127.0.0.1", "::1")
-        else:
-            cfg["ssl"] = ssl_flag not in ("0", "false", "no", "")
-        return cfg
+    host = env("MYSQL_HOST", "localhost")
     return {
-        "host": env("MYSQL_HOST", "localhost"),
+        "host": host,
         "port": int(env("MYSQL_PORT", "3306")),
         "user": env("MYSQL_USER", "root"),
         "password": env("MYSQL_PASSWORD", ""),
         "database": env("MYSQL_DATABASE", "kent"),
-        "ssl": env("MYSQL_SSL", "0") not in ("0", "false", "no", ""),
+        "ssl": _ssl_enabled(host),
     }
 
 
