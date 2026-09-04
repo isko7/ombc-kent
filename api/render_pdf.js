@@ -6,6 +6,7 @@
 // Le rendu respecte les règles CSS @page (size / margin) des templates
 // grâce à preferCSSPageSize, pour rester proche de la sortie wkhtmltopdf.
 
+const fs = require('fs');
 const path = require('path');
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
@@ -13,21 +14,38 @@ const puppeteer = require('puppeteer-core');
 // Pas de WebGL/GPU : inutile pour un rendu PDF, et plus rapide au démarrage.
 chromium.setGraphicsMode = false;
 
-// Polices : le runtime Vercel n'a quasiment aucune police -> les glyphes
-// non-ASCII (flèche →, etc.) et le rendu global seraient dégradés. On
-// enregistre DejaVu Sans (que les templates demandent explicitement) avant
-// le lancement de Chrome. includeFiles: "fonts/**" dans vercel.json garantit
-// que les .ttf sont dans le bundle de la fonction.
-const FONT_DIR = path.join(process.cwd(), 'fonts');
-let fontsReady;
-function registerFonts() {
-  if (!fontsReady) {
-    fontsReady = Promise.all([
-      chromium.font(path.join(FONT_DIR, 'DejaVuSans.ttf')),
-      chromium.font(path.join(FONT_DIR, 'DejaVuSans-Bold.ttf')),
-    ]).catch((e) => { console.error('font register failed:', e && e.message); });
+// Le runtime Vercel n'a quasiment aucune police -> certains glyphes
+// (flèche →, etc.) manquent. On injecte DejaVu Sans en @font-face base64
+// dans le HTML : c'est une web-font au niveau page, ça ne touche pas la
+// config fontconfig de Chrome (donc pas de risque de casser le reste).
+// includeFiles: "fonts/**" dans vercel.json embarque les .ttf.
+let FONT_CSS = null;
+function fontFaceCss() {
+  if (FONT_CSS !== null) return FONT_CSS;
+  try {
+    const dir = path.join(process.cwd(), 'fonts');
+    const reg = fs.readFileSync(path.join(dir, 'DejaVuSans.ttf')).toString('base64');
+    const bold = fs.readFileSync(path.join(dir, 'DejaVuSans-Bold.ttf')).toString('base64');
+    FONT_CSS =
+      '<style>' +
+      "@font-face{font-family:'DejaVu Sans';font-weight:400;font-style:normal;" +
+      'src:url(data:font/ttf;base64,' + reg + ') format("truetype")}' +
+      "@font-face{font-family:'DejaVu Sans';font-weight:700;font-style:normal;" +
+      'src:url(data:font/ttf;base64,' + bold + ') format("truetype")}' +
+      '</style>';
+  } catch (e) {
+    console.error('fontFaceCss: fonts introuvables, rendu sans DejaVu:', e && e.message);
+    FONT_CSS = '';
   }
-  return fontsReady;
+  return FONT_CSS;
+}
+
+function injectFonts(html) {
+  const css = fontFaceCss();
+  if (!css) return html;
+  if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => m + css);
+  if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, (m) => m + css);
+  return css + html;
 }
 
 async function readJsonBody(req) {
@@ -66,7 +84,6 @@ module.exports = async (req, res) => {
 
   let browser;
   try {
-    await registerFonts();
     browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
@@ -74,7 +91,8 @@ module.exports = async (req, res) => {
       headless: true,
     });
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.setContent(injectFonts(html), { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.evaluateHandle('document.fonts.ready');
     const pdf = await page.pdf({
       preferCSSPageSize: true,
       printBackground: true,
