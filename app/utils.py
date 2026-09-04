@@ -39,8 +39,16 @@ def day_label(value):
     return WEEKDAYS_FR[d.weekday()] if d else ""
 
 
+def fmt_date_full(value):
+    """date ou 'YYYY-MM-DD' -> 'mardi 08/09/2026' (jour en minuscule, comme
+    dans une phrase — utilisé pour l'objet/corps des emails)."""
+    d = parse_iso_date(value)
+    return f"{WEEKDAYS_FR[d.weekday()].lower()} {d.strftime('%d/%m/%Y')}" if d else ""
+
+
 def register_jinja_filters(app):
     app.jinja_env.filters["fmt_time"] = fmt_time
     app.jinja_env.filters["fmt_date_short"] = fmt_date_short
     app.jinja_env.filters["fmt_date_long"] = fmt_date_long
+    app.jinja_env.filters["fmt_date_full"] = fmt_date_full
     app.jinja_env.filters["day_label"] = day_label
