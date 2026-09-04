@@ -85,9 +85,48 @@ Dans *Project → Settings → Environment Variables* :
 | `SMTP_FROM_NAME` / `SMTP_FROM_EMAIL` | expéditeur affiché |
 | `COMPANY_*`, `OM_LEGAL_REF`, `BC_LEGAL_REF` | si différent des valeurs par défaut (voir `.env.example`) |
 
-Pour Microsoft 365 : ajouter `O365_TENANT_ID`, `O365_CLIENT_ID`,
-`O365_CLIENT_SECRET`, `O365_SENDER_EMAIL` et déclarer `msal` (voir
-`requirements-optional.txt`).
+### Microsoft 365 / Exchange Online (`SMTP_AUTH_METHOD=oauth2_o365`)
+
+O365 a désactivé l'authentification SMTP par mot de passe : il faut une
+App Registration Azure AD avec permission d'envoi applicative.
+
+1. **portal.azure.com → Azure Active Directory → App registrations → New
+   registration** (ou réutiliser une app existante).
+2. Notez l'**Application (client) ID** et le **Directory (tenant) ID**
+   (page *Overview*).
+3. **Certificates & secrets → New client secret** → copiez la **Value**
+   tout de suite (affichée une seule fois).
+4. **API permissions → Add a permission → APIs my organization uses**
+   → cherchez *Office 365 Exchange Online* → **Application permissions**
+   → cochez **`SMTP.SendAsApp`** → Add → puis **Grant admin consent**
+   (nécessite un rôle Admin global / Exchange).
+5. **Activer l'authentification SMTP sur la boîte mail** qui enverra les
+   emails (désactivée par défaut sur O365) : Exchange admin center →
+   Recipients → Mailboxes → la boîte → *Manage email apps* → activer
+   *Authenticated SMTP*. Ou en PowerShell :
+   ```powershell
+   Set-CASMailbox -Identity expediteur@votredomaine.com -SmtpClientAuthenticationDisabled $false
+   ```
+6. *(Recommandé)* Restreindre l'app à cette seule boîte mail plutôt que
+   tout le tenant, via une Application Access Policy (Exchange Online
+   PowerShell) :
+   ```powershell
+   New-DistributionGroup -Name "KentSmtpSenders" -Members expediteur@votredomaine.com
+   New-ApplicationAccessPolicy -AppId <client-id> -PolicyScopeGroupId KentSmtpSenders@votredomaine.com -AccessRight RestrictAccess -Description "Limite KENT SMTP à l'expéditeur"
+   ```
+7. Variables (Vercel ou `.env`) :
+   ```
+   SMTP_AUTH_METHOD=oauth2_o365
+   O365_TENANT_ID=<Directory (tenant) ID>
+   O365_CLIENT_ID=<Application (client) ID>
+   O365_CLIENT_SECRET=<Value du secret, pas l'ID>
+   O365_SENDER_EMAIL=expediteur@votredomaine.com
+   SMTP_HOST=smtp.office365.com
+   SMTP_PORT=587
+   SMTP_FROM_EMAIL=expediteur@votredomaine.com
+   ```
+   `msal` (le paquet OAuth2) est déjà dans `requirements.txt`, aucune
+   installation supplémentaire n'est nécessaire.
 
 > **Protection de déploiement** : si l'authentification Vercel (Deployment
 > Protection) est active, l'appel interne Flask → `/api/render_pdf` est
