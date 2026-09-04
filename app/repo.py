@@ -200,11 +200,21 @@ def activate_template(template_id):
 
 # --------------------------------------------------------------- missions
 def _next_reference(db, mission_date_str):
+    # Basé sur le suffixe numérique max existant, pas un COUNT(*) : un
+    # COUNT se désynchronise dès qu'une mission est supprimée (le numéro
+    # libéré redevient "disponible" alors qu'un numéro plus élevé existe
+    # déjà -> collision sur la contrainte UNIQUE à l'INSERT suivant).
     year = mission_date_str[:4] if mission_date_str else str(date.today().year)
-    count = db.execute(
-        "SELECT COUNT(*) AS c FROM missions WHERE reference LIKE ?", (f"OM-{year}-%",)
-    ).fetchone()["c"]
-    return f"OM-{year}-{count + 1:04d}"
+    prefix = f"OM-{year}-"
+    rows = db.execute(
+        "SELECT reference FROM missions WHERE reference LIKE ?", (f"{prefix}%",)
+    ).fetchall()
+    max_n = 0
+    for row in rows:
+        suffix = (row["reference"] or "")[len(prefix):]
+        if suffix.isdigit():
+            max_n = max(max_n, int(suffix))
+    return f"{prefix}{max_n + 1:04d}"
 
 
 def list_missions(driver_id=None, date_from=None, date_to=None, status=None):
