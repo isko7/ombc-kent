@@ -49,6 +49,8 @@ def pdftest():
         "PDF_ENGINE": PDF_ENGINE,
         "render_url": pdf_service._pdf_render_base_url() + "/api/render_pdf",
         "VERCEL_URL": os.environ.get("VERCEL_URL"),
+        "VERCEL_PROJECT_PRODUCTION_URL": os.environ.get("VERCEL_PROJECT_PRODUCTION_URL"),
+        "bypass_secret_set": bool(os.environ.get("VERCEL_AUTOMATION_BYPASS_SECRET")),
         "render_secret_set": bool(PDF_RENDER_SECRET),
     }
     html = "<!doctype html><html><head><style>@page{size:A4;margin:1cm}</style></head><body><h1>Test PDF</h1><p>OK</p></body></html>"
