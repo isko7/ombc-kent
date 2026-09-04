@@ -10,6 +10,7 @@ from app import repo
 from app.config import COMPANY
 from app.pdf_service import generate_mission_pdf, PdfGenerationError, POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC
 from app.email_service import send_mission_email, EmailError
+from app.utils import fmt_date_full
 
 bp = Blueprint("missions", __name__, url_prefix="/missions")
 
@@ -282,11 +283,12 @@ def email_mission(mission_id):
         flash(f"OM + BC envoyés à {', '.join(to_list)}.", "success")
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
 
-    default_subject = f"{COMPANY['name']} — Ordre de mission du {mission['mission_date']}"
+    mission_date_label = fmt_date_full(mission["mission_date"])
+    default_subject = f"{COMPANY['name']} — Ordre de mission du {mission_date_label}"
     default_body = (
         f"Bonjour {driver['first_name']},\n\n"
         f"Veuillez trouver ci-joint votre ordre de mission et le billet collectif "
-        f"pour le {mission['mission_date']}.\n\n"
+        f"pour le {mission_date_label}.\n\n"
         f"Cordialement,\n{COMPANY['name']}"
     )
     return render_template(
