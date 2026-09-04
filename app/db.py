@@ -18,8 +18,11 @@ from pymysql.cursors import DictCursor
 
 from app.config import DB_CONFIG, env
 
-# Index déclarés en ligne dans les CREATE TABLE : MySQL ne connaît pas
-# « CREATE INDEX IF NOT EXISTS ».
+# Index déclarés en ligne dans les CREATE TABLE (MySQL ne connaît pas
+# « CREATE INDEX IF NOT EXISTS »). Pas de contraintes FOREIGN KEY : la
+# cohérence référentielle est gérée côté application (repo.py), et les DDL
+# de FK sont lents / capricieux sur TiDB serverless. La suppression en
+# cascade des lignes filles est faite explicitement dans repo.delete_*.
 SCHEMA_STATEMENTS = [
     """
     CREATE TABLE IF NOT EXISTS drivers (
@@ -90,11 +93,7 @@ SCHEMA_STATEMENTS = [
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         KEY idx_missions_driver (driver_id),
-        KEY idx_missions_date (mission_date),
-        CONSTRAINT fk_missions_driver FOREIGN KEY (driver_id) REFERENCES drivers(id),
-        CONSTRAINT fk_missions_client FOREIGN KEY (client_id) REFERENCES clients(id),
-        CONSTRAINT fk_missions_om_tpl FOREIGN KEY (om_template_id) REFERENCES templates(id),
-        CONSTRAINT fk_missions_bc_tpl FOREIGN KEY (bc_template_id) REFERENCES templates(id)
+        KEY idx_missions_date (mission_date)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     """
@@ -107,9 +106,7 @@ SCHEMA_STATEMENTS = [
         vehicle_id INT NULL,
         label VARCHAR(255) NOT NULL,
         is_checkpoint TINYINT(1) NOT NULL DEFAULT 0,
-        KEY idx_legs_mission (mission_id),
-        CONSTRAINT fk_legs_mission FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE,
-        CONSTRAINT fk_legs_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+        KEY idx_legs_mission (mission_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     """
@@ -126,8 +123,7 @@ SCHEMA_STATEMENTS = [
         passenger_name VARCHAR(160),
         passenger_phone VARCHAR(40),
         booking_ref VARCHAR(80),
-        KEY idx_stops_mission (mission_id),
-        CONSTRAINT fk_stops_mission FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE
+        KEY idx_stops_mission (mission_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     """
@@ -140,8 +136,7 @@ SCHEMA_STATEMENTS = [
         insert_after_page INT NOT NULL DEFAULT 1,
         position INT NOT NULL DEFAULT 0,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_attachments_mission (mission_id),
-        CONSTRAINT fk_attachments_mission FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE
+        KEY idx_attachments_mission (mission_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     """
@@ -155,8 +150,7 @@ SCHEMA_STATEMENTS = [
         status VARCHAR(20) NOT NULL,
         error_message TEXT,
         sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_email_mission (mission_id),
-        CONSTRAINT fk_email_mission FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE
+        KEY idx_email_mission (mission_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 ]
@@ -275,15 +269,24 @@ def get_db():
 _initialized = False
 
 
-def init_db(force=False):
+def init_db(force=False, report=False):
     """Crée le schéma s'il n'existe pas. Idempotent (CREATE TABLE IF NOT
-    EXISTS). Exécuté une fois par process au démarrage de l'app."""
+    EXISTS). Exécuté une fois par process au démarrage de l'app.
+
+    report=True -> renvoie une liste [{table, ms}] au lieu de rien, et
+    n'avale pas les exceptions (utile pour /admin/init)."""
     global _initialized
     if _initialized and not force:
-        return
+        return [] if report else None
+    import time
     conn = _get_conn()
+    timings = []
     with conn.cursor() as cur:
         for stmt in SCHEMA_STATEMENTS:
+            name = stmt.split("IF NOT EXISTS", 1)[-1].split("(", 1)[0].strip()
+            t0 = time.monotonic()
             cur.execute(stmt)
+            timings.append({"table": name, "ms": round((time.monotonic() - t0) * 1000)})
     conn.commit()
     _initialized = True
+    return timings if report else None

@@ -9,6 +9,9 @@ besoin d'ouvrir un accès MySQL depuis votre poste :
 
 Si SEED_SECRET n'est pas défini, la route répond 404.
 """
+import time
+import traceback
+
 from flask import Blueprint, request, jsonify, abort
 
 from app.config import env
@@ -38,12 +41,25 @@ def dbcheck():
 def init():
     _require_secret()
 
-    actions = []
-    init_db(force=True)
-    actions.append("schéma vérifié/créé")
-    actions += seed_templates()
-    if request.args.get("demo") in ("1", "true", "yes"):
-        demo = seed_demo_data()
-        actions += demo or ["données de démo déjà présentes"]
+    steps = {}
+    try:
+        t0 = time.monotonic()
+        steps["schema"] = init_db(force=True, report=True)
+        steps["schema_ms"] = round((time.monotonic() - t0) * 1000)
 
-    return jsonify({"ok": True, "actions": actions})
+        t0 = time.monotonic()
+        steps["templates"] = seed_templates()
+        steps["templates_ms"] = round((time.monotonic() - t0) * 1000)
+
+        if request.args.get("demo") in ("1", "true", "yes"):
+            t0 = time.monotonic()
+            steps["demo"] = seed_demo_data() or ["déjà présent"]
+            steps["demo_ms"] = round((time.monotonic() - t0) * 1000)
+    except Exception as e:
+        steps["ok"] = False
+        steps["error"] = f"{type(e).__name__}: {e}"
+        steps["trace"] = traceback.format_exc().splitlines()[-6:]
+        return jsonify(steps), 500
+
+    steps["ok"] = True
+    return jsonify(steps)
