@@ -293,14 +293,9 @@ def create_mission(data):
         return mission_id
 
 
-def duplicate_mission(mission_id):
-    """Crée une copie de la mission (nouvelle référence, statut réinitialisé
-    à « brouillon », trajets/arrêts recopiés). Les pièces jointes et
-    l'historique d'envoi ne sont pas dupliqués. Renvoie le nouvel id."""
-    src = get_mission(mission_id)
-    if not src:
-        return None
-    return create_mission({
+def _copy_base_fields(src):
+    """Champs mission communs à duplicate_mission()/create_return_mission()."""
+    return {
         "driver_id": src["driver_id"],
         "mission_date": src["mission_date"],
         "motif": src["motif"],
@@ -311,20 +306,66 @@ def duplicate_mission(mission_id):
         "status": "brouillon",
         "om_template_id": src["om_template_id"],
         "bc_template_id": src["bc_template_id"],
-        "legs": [
-            {"start_time": l["start_time"], "end_time": l["end_time"], "vehicle_id": l["vehicle_id"],
-             "label": l["label"], "is_checkpoint": l["is_checkpoint"], "is_relay": l.get("is_relay"),
-             "relay_driver_id": l.get("relay_driver_id")}
-            for l in src["legs"]
-        ],
-        "stops": [
-            {"stop_type": s["stop_type"], "stop_date": s["stop_date"], "stop_time": s["stop_time"],
-             "address": s["address"], "city": s["city"], "passenger_count": s["passenger_count"],
-             "passenger_name": s["passenger_name"], "passenger_phone": s["passenger_phone"],
-             "booking_ref": s["booking_ref"]}
-            for s in src["stops"]
-        ],
-    })
+    }
+
+
+def _copy_leg(l):
+    return {"start_time": l["start_time"], "end_time": l["end_time"], "vehicle_id": l["vehicle_id"],
+            "label": l["label"], "is_checkpoint": l["is_checkpoint"], "is_relay": l.get("is_relay"),
+            "relay_driver_id": l.get("relay_driver_id")}
+
+
+def _copy_stop(s):
+    return {"stop_type": s["stop_type"], "stop_date": s["stop_date"], "stop_time": s["stop_time"],
+            "address": s["address"], "city": s["city"], "passenger_count": s["passenger_count"],
+            "passenger_name": s["passenger_name"], "passenger_phone": s["passenger_phone"],
+            "booking_ref": s["booking_ref"]}
+
+
+def duplicate_mission(mission_id):
+    """Crée une copie de la mission (nouvelle référence, statut réinitialisé
+    à « brouillon », trajets/arrêts recopiés). Les pièces jointes et
+    l'historique d'envoi ne sont pas dupliqués. Renvoie le nouvel id."""
+    src = get_mission(mission_id)
+    if not src:
+        return None
+    data = _copy_base_fields(src)
+    data["legs"] = [_copy_leg(l) for l in src["legs"]]
+    data["stops"] = [_copy_stop(s) for s in src["stops"]]
+    return create_mission(data)
+
+
+_STOP_TYPE_SWAP = {"prise_en_charge": "depose", "depose": "prise_en_charge"}
+
+
+def _reverse_leg_label(label):
+    if not label:
+        return label
+    if label.startswith("Prise de service"):
+        return label.replace("Prise de service", "Fin de service", 1)
+    if label.startswith("Fin de service"):
+        return label.replace("Fin de service", "Prise de service", 1)
+    if " → " in label:
+        left, right = label.split(" → ", 1)
+        return f"{right} → {left}"
+    return label
+
+
+def create_return_mission(mission_id):
+    """Crée le trajet retour : arrêts et trajets dans l'ordre inverse,
+    prise en charge <-> dépose inversées, libellés de trajet retournés
+    (« A → B » devient « B → A », prise/fin de service échangées).
+    Les horaires ne sont volontairement pas recalculés (à ajuster) :
+    un nouveau brouillon est créé, comme pour la duplication simple."""
+    src = get_mission(mission_id)
+    if not src:
+        return None
+    data = _copy_base_fields(src)
+    data["legs"] = [_copy_leg(l) | {"label": _reverse_leg_label(l["label"])}
+                     for l in reversed(src["legs"])]
+    data["stops"] = [_copy_stop(s) | {"stop_type": _STOP_TYPE_SWAP.get(s["stop_type"], s["stop_type"])}
+                      for s in reversed(src["stops"])]
+    return create_mission(data)
 
 
 def update_mission(mission_id, data):
