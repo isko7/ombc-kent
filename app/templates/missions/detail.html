@@ -7,6 +7,12 @@
       <h1>{{ mission.mission_name or (mission.driver.last_name ~ ' ' ~ mission.driver.first_name) }}</h1>
       {% if mission.mission_name %}<div class="hint" style="margin:-4px 0 8px;">{{ mission.driver.last_name }} {{ mission.driver.first_name }}</div>{% endif %}
       <span class="badge badge--{{ mission.status }}">{{ mission.status }}</span>
+      {% if mission.sent_randstad_at or mission.sent_driver_at %}
+      <div class="flag-row">
+        {% if mission.sent_randstad_at %}<span class="flag flag--randstad" title="Envoyé à Randstad le {{ mission.sent_randstad_at }}">✓ Envoyé à Randstad</span>{% endif %}
+        {% if mission.sent_driver_at %}<span class="flag flag--driver" title="Envoyé au chauffeur le {{ mission.sent_driver_at }}">✓ Envoyé au chauffeur</span>{% endif %}
+      </div>
+      {% endif %}
     </div>
     <div class="btn-row" style="margin-top:0;">
       <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id, inline=1) }}" target="_blank" class="btn btn--secondary">👁 Aperçu PDF</a>

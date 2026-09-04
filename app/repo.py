@@ -437,6 +437,16 @@ def set_mission_status(mission_id, status):
         db.execute("UPDATE missions SET status=?, updated_at=? WHERE id=?", (status, now_iso(), mission_id))
 
 
+def mark_sent_randstad(mission_id):
+    with get_db() as db:
+        db.execute("UPDATE missions SET sent_randstad_at=? WHERE id=?", (now_iso(), mission_id))
+
+
+def mark_sent_driver(mission_id):
+    with get_db() as db:
+        db.execute("UPDATE missions SET sent_driver_at=? WHERE id=?", (now_iso(), mission_id))
+
+
 # ------------------------------------------------------------ attachments
 def add_attachment(mission_id, filename, content, content_type, insert_after_page):
     """`content` : octets bruts du fichier (stockés en LONGBLOB)."""

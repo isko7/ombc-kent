@@ -141,3 +141,7 @@ O365_TENANT_ID = env("O365_TENANT_ID", "")
 O365_CLIENT_ID = env("O365_CLIENT_ID", "")
 O365_CLIENT_SECRET = env("O365_CLIENT_SECRET", "")
 O365_SENDER_EMAIL = env("O365_SENDER_EMAIL", SMTP_USER)
+
+# Adresse pré-remplie comme destinataire de l'envoi groupé "Envoyer à
+# Randstad" (liste des missions -> agence d'intérim). Modifiable à l'envoi.
+RANDSTAD_EMAIL = env("RANDSTAD_EMAIL", "")

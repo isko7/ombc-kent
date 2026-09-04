@@ -77,8 +77,8 @@ def _send_via_smtp(msg: EmailMessage):
             server.send_message(msg)
 
 
-def send_mission_email(mission_id, to_addresses, cc_addresses, subject, body, pdf_bytes, pdf_filename):
-    """to_addresses / cc_addresses : listes de chaînes email."""
+def _build_message(to_addresses, cc_addresses, subject, body, attachments):
+    """attachments : liste de (pdf_bytes, filename)."""
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
@@ -86,8 +86,15 @@ def send_mission_email(mission_id, to_addresses, cc_addresses, subject, body, pd
     if cc_addresses:
         msg["Cc"] = ", ".join(cc_addresses)
     msg.set_content(body)
-    msg.add_attachment(pdf_bytes, maintype="application", subtype="pdf", filename=pdf_filename)
+    for pdf_bytes, pdf_filename in attachments:
+        msg.add_attachment(pdf_bytes, maintype="application", subtype="pdf", filename=pdf_filename)
+    return msg
 
+
+def send_mission_email(mission_id, to_addresses, cc_addresses, subject, body, pdf_bytes, pdf_filename):
+    """to_addresses / cc_addresses : listes de chaînes email. Une seule
+    mission -> un seul PDF joint, journalisé sur cette mission."""
+    msg = _build_message(to_addresses, cc_addresses, subject, body, [(pdf_bytes, pdf_filename)])
     try:
         _send_via_smtp(msg)
     except Exception as e:
@@ -101,3 +108,20 @@ def send_mission_email(mission_id, to_addresses, cc_addresses, subject, body, pd
         mission_id, ", ".join(to_addresses), ", ".join(cc_addresses or []),
         subject, body, status="sent",
     )
+
+
+def send_bulk_email(mission_ids, to_addresses, cc_addresses, subject, body, attachments):
+    """Envoi groupé : plusieurs missions dans un seul email, un PDF par
+    mission en pièce jointe. Journalise l'envoi sur chacune des missions
+    (visible dans leur historique respectif)."""
+    msg = _build_message(to_addresses, cc_addresses, subject, body, attachments)
+    to_str, cc_str = ", ".join(to_addresses), ", ".join(cc_addresses or [])
+    try:
+        _send_via_smtp(msg)
+    except Exception as e:
+        for mission_id in mission_ids:
+            repo.log_email(mission_id, to_str, cc_str, subject, body, status="failed", error_message=str(e))
+        raise EmailError(str(e)) from e
+
+    for mission_id in mission_ids:
+        repo.log_email(mission_id, to_str, cc_str, subject, body, status="sent")
