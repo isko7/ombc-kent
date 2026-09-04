@@ -1,3 +1,4 @@
+from datetime import date
 from pathlib import Path
 
 from flask import (
@@ -145,7 +146,8 @@ def new_mission():
     return render_template("missions/form.html", is_new=True, **_form_context({
         "status": "brouillon", "motif": "Transport Occasionnel",
         "driver_id": None, "client_id": None, "om_template_id": None, "bc_template_id": None,
-        "mission_date": "", "mission_name": "", "emission_date": "", "price": "", "remarks": "",
+        "mission_date": "", "mission_name": "", "emission_date": date.today().isoformat(),
+        "price": "", "remarks": "",
         "legs": [], "stops": [],
     }))
 

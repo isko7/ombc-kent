@@ -145,7 +145,16 @@ document.addEventListener("DOMContentLoaded", () => {
   if (addLegBtn) addLegBtn.addEventListener("click", () => addRow("legs-body", "leg-row-template"));
 
   const addStopBtn = document.getElementById("add-stop-row");
-  if (addStopBtn) addStopBtn.addEventListener("click", () => addRow("stops-body", "stop-row-template"));
+  if (addStopBtn) addStopBtn.addEventListener("click", () => {
+    addRow("stops-body", "stop-row-template");
+    // La date du gabarit est figée au chargement de la page (souvent vide
+    // sur une mission neuve) : on la reprend depuis le champ Date de la
+    // mission au moment de l'ajout, pour avoir la valeur à jour.
+    const tr = document.getElementById("stops-body").lastElementChild;
+    const dateInput = tr && tr.querySelector('[name="stop_date[]"]');
+    const missionDate = document.querySelector('[name="mission_date"]');
+    if (dateInput && missionDate && missionDate.value) dateInput.value = missionDate.value;
+  });
 
   const genBtn = document.getElementById("generate-legs-btn");
   if (genBtn) genBtn.addEventListener("click", generateLegsFromStops);
