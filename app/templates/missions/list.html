@@ -40,21 +40,42 @@
     <a href="{{ url_for('missions.list_missions_view') }}" class="btn btn--ghost">Réinitialiser</a>
   </form>
 
+  {# Formulaire "vide" : les cases à cocher du tableau lui sont rattachées
+     via l'attribut form="bulk-form", pour ne pas imbriquer de <form>
+     (le tableau contient déjà un mini-formulaire par ligne pour "Dupliquer"). #}
+  <form method="get" action="{{ url_for('missions.bulk_email') }}" id="bulk-form"></form>
+
   <div class="card" style="padding:0;">
     {% if missions %}
+    <div class="btn-row" style="padding:16px 16px 0; margin-top:0;">
+      <button type="submit" form="bulk-form" class="btn btn--blue">Envoyer à Randstad</button>
+      <span class="hint" style="align-self:center;">Coche les missions à inclure dans l'envoi groupé.</span>
+    </div>
     <table class="data-table">
       <thead>
-        <tr><th>Référence</th><th>Nom</th><th>Date</th><th>Chauffeur</th><th>Client</th><th>Statut</th><th></th></tr>
+        <tr>
+          <th style="width:24px;"><input type="checkbox" id="select-all"></th>
+          <th>Référence</th><th>Nom</th><th>Date</th><th>Chauffeur</th><th>Client</th><th>Statut</th><th></th>
+        </tr>
       </thead>
       <tbody>
         {% for m in missions %}
         <tr>
+          <td><input type="checkbox" name="mission_ids" value="{{ m.id }}" form="bulk-form" class="row-check"></td>
           <td><a href="{{ url_for('missions.detail_mission', mission_id=m.id) }}"><strong>{{ m.reference }}</strong></a></td>
           <td>{{ m.mission_name or '—' }}</td>
           <td>{{ m.mission_date | fmt_date_long }} <span class="pill-note">{{ m.mission_date | day_label }}</span></td>
           <td>{{ m.driver_last_name }} {{ m.driver_first_name }}</td>
           <td>{{ m.client_name or '—' }}</td>
-          <td><span class="badge badge--{{ m.status }}">{{ m.status }}</span></td>
+          <td>
+            <span class="badge badge--{{ m.status }}">{{ m.status }}</span>
+            {% if m.sent_randstad_at or m.sent_driver_at %}
+            <div class="flag-row">
+              {% if m.sent_randstad_at %}<span class="flag flag--randstad" title="Envoyé à Randstad le {{ m.sent_randstad_at }}">✓ Randstad</span>{% endif %}
+              {% if m.sent_driver_at %}<span class="flag flag--driver" title="Envoyé au chauffeur le {{ m.sent_driver_at }}">✓ Chauffeur</span>{% endif %}
+            </div>
+            {% endif %}
+          </td>
           <td class="row-actions">
             <a href="{{ url_for('missions.detail_mission', mission_id=m.id) }}" class="btn btn--ghost btn--sm">Ouvrir</a>
             <form method="post" action="{{ url_for('missions.duplicate_mission', mission_id=m.id) }}" style="display:inline; margin:0;">
@@ -72,4 +93,15 @@
     </div>
     {% endif %}
   </div>
+
+  <script>
+    (function () {
+      var selectAll = document.getElementById("select-all");
+      if (selectAll) {
+        selectAll.addEventListener("change", function () {
+          document.querySelectorAll(".row-check").forEach(function (cb) { cb.checked = selectAll.checked; });
+        });
+      }
+    })();
+  </script>
 {% endblock %}

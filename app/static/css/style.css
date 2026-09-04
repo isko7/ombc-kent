@@ -11,6 +11,10 @@
   --ok-text: #1e6b3a;
   --err-bg: #fdecec;
   --err-text: #a81f2d;
+  --blue: #1d63d8;
+  --blue-dark: #164ea8;
+  --blue-bg: #e8f0fd;
+  --blue-text: #164ea8;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --radius: 6px;
 }
@@ -80,6 +84,8 @@ a:hover { text-decoration: underline; }
 .btn--ghost:hover { background: #f2f1ee; }
 .btn--danger { background: #fff; color: var(--err-text); border-color: #f0c9c9; }
 .btn--danger:hover { background: var(--err-bg); }
+.btn--blue { background: var(--blue); color: #fff; }
+.btn--blue:hover { background: var(--blue-dark); }
 .btn--sm { padding: 6px 11px; font-size: 12.5px; }
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
 
@@ -103,6 +109,14 @@ table.data-table .row-actions { text-align: right; white-space: nowrap; }
 .badge--finalisé { background: #fff2df; color: #9a5b00; }
 .badge--envoyé { background: var(--ok-bg); color: var(--ok-text); }
 .badge--inactive { background: #f1eee7; color: var(--muted); }
+
+/* Petits indicateurs d'envoi : bleu = envoyé à Randstad, vert = envoyé
+   au chauffeur. Utilisés sur la liste et la fiche mission. */
+.flag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; white-space: nowrap; }
+.flag--randstad { background: var(--blue-bg); color: var(--blue-text); }
+.flag--driver { background: var(--ok-bg); color: var(--ok-text); }
+.flag-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
 
 /* ---------------------------------------------------------------- forms */
 .field { margin-bottom: 16px; }

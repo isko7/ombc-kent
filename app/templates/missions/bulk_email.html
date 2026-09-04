@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Envoyer à Randstad{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>Envoyer {{ missions|length }} ordre{{ 's' if missions|length != 1 }} de mission</h1>
+    <a href="{{ url_for('missions.list_missions_view') }}" class="btn btn--secondary">← Retour à la liste</a>
+  </div>
+
+  <div class="card">
+    <h2>Missions sélectionnées</h2>
+    <table class="data-table">
+      <thead><tr><th>Référence</th><th>Chauffeur</th><th>Date</th></tr></thead>
+      <tbody>
+        {% for m in missions %}
+        <tr>
+          <td><a href="{{ url_for('missions.detail_mission', mission_id=m.id) }}">{{ m.reference }}</a></td>
+          <td>{{ m.driver.last_name }} {{ m.driver.first_name }}</td>
+          <td>{{ m.mission_date | fmt_date_long }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <form method="post" class="card">
+    {% for id in mission_ids %}<input type="hidden" name="mission_ids" value="{{ id }}">{% endfor %}
+    <div class="field">
+      <label>Destinataires *</label>
+      <input type="text" name="to" value="{{ default_to }}" required>
+      <div class="hint">Adresses séparées par des virgules.</div>
+    </div>
+    <div class="field">
+      <label>Copie (Cc)</label>
+      <input type="text" name="cc" placeholder="ex. exploitation@transports-kent.fr, ...">
+    </div>
+    <div class="field">
+      <label>Objet *</label>
+      <input type="text" name="subject" value="{{ default_subject }}" required>
+    </div>
+    <div class="field">
+      <label>Message</label>
+      <textarea name="body" rows="16">{{ default_body }}</textarea>
+    </div>
+    <div class="hint" style="margin-bottom:16px;">Un PDF (Ordre de Mission + pièces jointes + Billet Collectif) par mission sera généré au moment de l'envoi et joint automatiquement — {{ missions|length }} pièce{{ 's' if missions|length != 1 }} jointe{{ 's' if missions|length != 1 }} au total.</div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn--blue">Envoyer à Randstad</button>
+    </div>
+  </form>
+{% endblock %}

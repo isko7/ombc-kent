@@ -7,10 +7,10 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from app import repo
-from app.config import COMPANY
+from app.config import COMPANY, RANDSTAD_EMAIL
 from app.pdf_service import generate_mission_pdf, PdfGenerationError, POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC
-from app.email_service import send_mission_email, EmailError
-from app.utils import fmt_date_full
+from app.email_service import send_mission_email, send_bulk_email, EmailError
+from app.utils import fmt_date_full, fmt_date_short, fmt_time
 
 bp = Blueprint("missions", __name__, url_prefix="/missions")
 
@@ -280,6 +280,7 @@ def email_mission(mission_id):
             flash(f"Échec de l'envoi : {e}", "error")
             return redirect(url_for("missions.email_mission", mission_id=mission_id))
         repo.set_mission_status(mission_id, "envoyé")
+        repo.mark_sent_driver(mission_id)
         flash(f"OM + BC envoyés à {', '.join(to_list)}.", "success")
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
 
@@ -294,4 +295,81 @@ def email_mission(mission_id):
     return render_template(
         "missions/email.html", mission=mission, driver=driver,
         default_subject=default_subject, default_body=default_body,
+    )
+
+
+def _bulk_email_defaults(missions):
+    """Regroupe les missions sélectionnées par chauffeur (ordre
+    d'apparition), trie les dates de chacun, et construit l'objet/corps
+    par défaut du bouton « Envoyer à Randstad »."""
+    order = []
+    groups = {}
+    for m in missions:
+        driver = m["driver"]
+        key = driver["id"]
+        if key not in groups:
+            groups[key] = {"name": f"{driver['last_name']} {driver['first_name']}", "rows": []}
+            order.append(key)
+        legs = m.get("legs") or []
+        time_range = f"{fmt_time(legs[0]['start_time'])}-{fmt_time(legs[-1]['end_time'])}" if legs else ""
+        groups[key]["rows"].append((m["mission_date"], time_range))
+    for key in groups:
+        groups[key]["rows"].sort(key=lambda r: r[0])
+
+    names = [groups[k]["name"] for k in order]
+    subject = "Missions pour " + " + ".join(names)
+
+    lines = ["Bonjour,", "", f"Veuillez trouver ci-joint des missions pour {' + '.join(names)} :", ""]
+    for key in order:
+        g = groups[key]
+        lines.append(f"{g['name']} :")
+        lines.append("")
+        for mission_date, time_range in g["rows"]:
+            row = fmt_date_short(mission_date)
+            if time_range:
+                row += f" : {time_range}"
+            lines.append(row)
+        lines.append("")
+    lines += [
+        "N'hésitez pas à revenir vers nous pour toute question.",
+        "",
+        "Cordialement,",
+        COMPANY["name"],
+    ]
+    return subject, "\n".join(lines)
+
+
+@bp.route("/envoi-groupe", methods=["GET", "POST"])
+def bulk_email():
+    """Sélection multiple sur la liste des missions -> bouton "Envoyer à
+    Randstad" : un email avec un PDF (OM+BC) par mission en pièce jointe."""
+    ids = (request.form if request.method == "POST" else request.args).getlist("mission_ids", type=int)
+    missions = [m for m in (repo.get_mission(i) for i in ids) if m]
+    if not missions:
+        flash("Sélectionnez au moins un ordre de mission.", "error")
+        return redirect(url_for("missions.list_missions_view"))
+
+    if request.method == "POST":
+        to_list = [e.strip() for e in request.form.get("to", "").split(",") if e.strip()]
+        cc_list = [e.strip() for e in request.form.get("cc", "").split(",") if e.strip()]
+        subject = request.form.get("subject", "").strip()
+        body = request.form.get("body", "")
+        if not to_list or not subject:
+            flash("Au moins un destinataire et un objet sont requis.", "error")
+            return redirect(url_for("missions.bulk_email", mission_ids=ids))
+        try:
+            attachments = [generate_mission_pdf(m["id"]) for m in missions]
+            send_bulk_email(ids, to_list, cc_list, subject, body, attachments)
+        except (PdfGenerationError, EmailError) as e:
+            flash(f"Échec de l'envoi : {e}", "error")
+            return redirect(url_for("missions.bulk_email", mission_ids=ids))
+        for m in missions:
+            repo.mark_sent_randstad(m["id"])
+        flash(f"{len(missions)} ordre(s) de mission envoyé(s) à {', '.join(to_list)}.", "success")
+        return redirect(url_for("missions.list_missions_view"))
+
+    subject, body = _bulk_email_defaults(missions)
+    return render_template(
+        "missions/bulk_email.html", missions=missions, mission_ids=ids,
+        default_to=RANDSTAD_EMAIL, default_subject=subject, default_body=body,
     )

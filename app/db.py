@@ -91,6 +91,8 @@ SCHEMA_STATEMENTS = [
         status VARCHAR(30) NOT NULL DEFAULT 'brouillon',
         om_template_id INT NULL,
         bc_template_id INT NULL,
+        sent_randstad_at DATETIME NULL,
+        sent_driver_at DATETIME NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         KEY idx_missions_driver (driver_id),
@@ -166,6 +168,8 @@ MIGRATIONS = [
     "ALTER TABLE mission_legs ADD COLUMN is_relay TINYINT(1) NOT NULL DEFAULT 0",
     "ALTER TABLE mission_legs ADD COLUMN relay_driver_id INT NULL",
     "ALTER TABLE missions ADD COLUMN mission_name VARCHAR(255)",
+    "ALTER TABLE missions ADD COLUMN sent_randstad_at DATETIME NULL",
+    "ALTER TABLE missions ADD COLUMN sent_driver_at DATETIME NULL",
 ]
 
 
