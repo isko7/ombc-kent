@@ -37,6 +37,35 @@ def dbcheck():
     return jsonify(result), (200 if result.get("ok") else 500)
 
 
+@bp.route("/pdftest")
+def pdftest():
+    """Diagnostic du rendu PDF : /admin/pdftest?key=<SEED_SECRET>
+    Teste render_html_to_pdf sur un HTML minimal et rapporte l'erreur."""
+    _require_secret()
+    import os
+    from app import pdf_service
+    from app.config import PDF_ENGINE, PDF_RENDER_URL, PDF_RENDER_SECRET
+    info = {
+        "PDF_ENGINE": PDF_ENGINE,
+        "render_url": pdf_service._pdf_render_base_url() + "/api/render_pdf",
+        "VERCEL_URL": os.environ.get("VERCEL_URL"),
+        "render_secret_set": bool(PDF_RENDER_SECRET),
+    }
+    html = "<!doctype html><html><head><style>@page{size:A4;margin:1cm}</style></head><body><h1>Test PDF</h1><p>OK</p></body></html>"
+    t0 = time.monotonic()
+    try:
+        pdf = pdf_service.render_html_to_pdf(html)
+        info["ok"] = True
+        info["pdf_bytes"] = len(pdf)
+        info["is_pdf"] = pdf[:5] == b"%PDF-"
+    except Exception as e:
+        info["ok"] = False
+        info["error"] = f"{type(e).__name__}: {e}"
+        info["trace"] = traceback.format_exc().splitlines()[-8:]
+    info["ms"] = round((time.monotonic() - t0) * 1000)
+    return jsonify(info), (200 if info.get("ok") else 500)
+
+
 @bp.route("/init")
 def init():
     _require_secret()
