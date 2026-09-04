@@ -68,7 +68,7 @@
           <td>{{ m.driver_last_name }} {{ m.driver_first_name }}</td>
           <td>{{ m.client_name or '—' }}</td>
           <td>
-            <span class="badge badge--{{ m.status }}">{{ m.status }}</span>
+            {% if m.status != 'envoyé' %}<span class="badge badge--{{ m.status }}">{{ m.status }}</span>{% endif %}
             {% if m.sent_randstad_at or m.sent_driver_at %}
             <div class="flag-row">
               {% if m.sent_randstad_at %}<span class="flag flag--randstad" title="Envoyé à Randstad le {{ m.sent_randstad_at }}">✓ Randstad</span>{% endif %}
