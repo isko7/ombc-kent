@@ -23,6 +23,10 @@
           <input type="date" name="mission_date" value="{{ mission.mission_date or '' }}" required>
         </div>
         <div class="field">
+          <label>Nom de la mission</label>
+          <input type="text" name="mission_name" value="{{ mission.mission_name or '' }}" placeholder="ex. Sortie scolaire Chartres">
+        </div>
+        <div class="field">
           <label>Motif du déplacement</label>
           <input type="text" name="motif" value="{{ mission.motif or 'Transport Occasionnel' }}">
         </div>

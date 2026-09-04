@@ -4,7 +4,8 @@
   <div class="card mission-hero">
     <div>
       <div class="ref">{{ mission.reference }}</div>
-      <h1>{{ mission.driver.last_name }} {{ mission.driver.first_name }}</h1>
+      <h1>{{ mission.mission_name or (mission.driver.last_name ~ ' ' ~ mission.driver.first_name) }}</h1>
+      {% if mission.mission_name %}<div class="hint" style="margin:-4px 0 8px;">{{ mission.driver.last_name }} {{ mission.driver.first_name }}</div>{% endif %}
       <span class="badge badge--{{ mission.status }}">{{ mission.status }}</span>
     </div>
     <div class="btn-row" style="margin-top:0;">
