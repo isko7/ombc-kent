@@ -60,7 +60,7 @@ function relayText(option) {
   const fn = (option.dataset.fn || "").trim();
   const ln = (option.dataset.ln || "").trim();
   const tel = (option.dataset.tel || "").trim();
-  const who = (fn ? fn.charAt(0).toUpperCase() + "." : "") + ln;
+  const who = [fn, ln].filter(Boolean).join(" ");
   return "Relais avec " + who + (tel ? " (" + tel + ")" : "");
 }
 
