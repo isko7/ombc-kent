@@ -84,6 +84,12 @@ def _render_via_wkhtmltopdf(html: str) -> bytes:
 def _pdf_render_base_url() -> str:
     if PDF_RENDER_URL:
         return PDF_RENDER_URL.rstrip("/")
+    # Le domaine de production (ombc-kent.vercel.app) n'est pas derrière la
+    # « Deployment Protection », contrairement à VERCEL_URL (URL de
+    # déploiement, protégée par SSO). On le préfère donc pour l'appel interne.
+    prod = os.environ.get("VERCEL_PROJECT_PRODUCTION_URL")
+    if prod:
+        return f"https://{prod}"
     vercel = os.environ.get("VERCEL_URL")
     if vercel:
         return f"https://{vercel}"
@@ -96,6 +102,11 @@ def _render_via_http(html: str) -> bytes:
     headers = {"Content-Type": "application/json"}
     if PDF_RENDER_SECRET:
         headers["X-Render-Secret"] = PDF_RENDER_SECRET
+    # Si la « Protection Bypass for Automation » est activée, Vercel injecte
+    # ce secret : il ouvre aussi les URLs de déploiement protégées.
+    bypass = os.environ.get("VERCEL_AUTOMATION_BYPASS_SECRET")
+    if bypass:
+        headers["x-vercel-protection-bypass"] = bypass
     req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
