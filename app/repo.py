@@ -334,7 +334,11 @@ def _replace_stops(db, mission_id, stops):
 
 
 def delete_mission(mission_id):
+    # Pas de FK ON DELETE CASCADE (schéma sans contraintes) -> on supprime
+    # explicitement les lignes filles.
     with get_db() as db:
+        for table in ("mission_legs", "mission_stops", "attachments", "email_log"):
+            db.execute(f"DELETE FROM {table} WHERE mission_id = ?", (mission_id,))
         db.execute("DELETE FROM missions WHERE id = ?", (mission_id,))
 
 
