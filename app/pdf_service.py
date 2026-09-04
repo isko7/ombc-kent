@@ -125,6 +125,24 @@ def _render_via_http(html: str) -> bytes:
     return out
 
 
+def _bold_leg_label(label):
+    """Met la ville en gras dans un libellé de trajet du type
+    « VILLE, adresse » ou « VILLE1, adr1 → VILLE2, adr2 » (le format produit
+    par « Générer les trajets depuis les arrêts », ville puis adresse
+    séparées par une virgule). Les libellés sans cette forme (pauses,
+    points de contrôle, texte libre) sont laissés tels quels."""
+    if not label:
+        return label
+
+    def bold_side(side):
+        if ", " in side:
+            city, rest = side.split(", ", 1)
+            return f"<strong>{city}</strong>, {rest}"
+        return side
+
+    return " → ".join(bold_side(p) for p in label.split(" → "))
+
+
 def _default_passenger_count(stops):
     pec = sum(s.get("passenger_count") or 1 for s in stops if s["stop_type"] == "prise_en_charge")
     dep = sum(s.get("passenger_count") or 1 for s in stops if s["stop_type"] == "depose")
@@ -139,7 +157,7 @@ def build_om_context(mission):
             "start_time": fmt_time(leg["start_time"]),
             "end_time": fmt_time(leg["end_time"]),
             "vehicle": leg.get("vehicle_plate"),
-            "label": leg["label"],
+            "label": _bold_leg_label(leg["label"]),
             "is_checkpoint": bool(leg["is_checkpoint"]),
             "is_relay": bool(leg.get("is_relay")),
         })
