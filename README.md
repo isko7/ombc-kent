@@ -87,8 +87,14 @@ Dans *Project → Settings → Environment Variables* :
 
 ### Microsoft 365 / Exchange Online (`SMTP_AUTH_METHOD=oauth2_o365`)
 
-O365 a désactivé l'authentification SMTP par mot de passe : il faut une
-App Registration Azure AD avec permission d'envoi applicative.
+L'envoi passe par l'**API Microsoft Graph** (`POST /users/{expéditeur}/
+sendMail`), pas par le protocole SMTP AUTH classique : Microsoft traite
+SMTP AUTH comme une « authentification legacy » et le bloque dès que les
+Security Defaults / Conditional Access sont actifs sur le tenant (quasi
+systématique sur un tenant récent) — désactiver cette protection tenant-
+wide juste pour l'email est un compromis de sécurité qu'on préfère
+éviter. Graph est une API REST « moderne », non concernée par ce blocage,
+donc rien à changer à la posture de sécurité du tenant.
 
 1. **portal.azure.com → Azure Active Directory → App registrations → New
    registration** (ou réutiliser une app existante).
@@ -96,44 +102,32 @@ App Registration Azure AD avec permission d'envoi applicative.
    (page *Overview*).
 3. **Certificates & secrets → New client secret** → copiez la **Value**
    tout de suite (affichée une seule fois).
-4. **API permissions → Add a permission → APIs my organization uses**
-   → cherchez *Office 365 Exchange Online* → **Application permissions**
-   → cochez **`SMTP.SendAsApp`** → Add → puis **Grant admin consent**
-   (nécessite un rôle Admin global / Exchange).
-5. **Activer SMTP AUTH — deux réglages séparés, les deux désactivés par
-   défaut sur O365 (à faire tous les deux, sinon erreur `535 5.7.139
-   SmtpClientAuthentication is disabled for the Tenant`)** :
-   - **Niveau tenant** : admin.microsoft.com → Paramètres → Paramètres de
-     l'organisation → *Services* → « Authentification moderne » →
-     décocher *Turn off SMTP AUTH protocol for your organization*.
-     Ou en PowerShell : `Set-TransportConfig -SmtpClientAuthenticationDisabled $false`
-   - **Niveau boîte mail** : Exchange admin center → Recipients →
-     Mailboxes → la boîte → *Manage email apps* → activer
-     *Authenticated SMTP*. Ou :
-     ```powershell
-     Set-CASMailbox -Identity expediteur@votredomaine.com -SmtpClientAuthenticationDisabled $false
-     ```
-   La propagation peut prendre jusqu'à 1h après le changement.
-6. *(Recommandé)* Restreindre l'app à cette seule boîte mail plutôt que
+4. **API permissions → Add a permission → Microsoft Graph** →
+   **Application permissions** → cherchez et cochez **`Mail.Send`** →
+   Add → puis **Grant admin consent** (nécessite un rôle Admin global).
+   *(Ne pas confondre avec l'API « Office 365 Exchange Online » /
+   `SMTP.SendAsApp` — ce n'est pas celle-là qu'il faut.)*
+5. *(Recommandé)* Restreindre l'app à une seule boîte mail plutôt que
    tout le tenant, via une Application Access Policy (Exchange Online
-   PowerShell) :
+   PowerShell — s'applique aussi à Graph `sendMail`) :
    ```powershell
-   New-DistributionGroup -Name "KentSmtpSenders" -Members expediteur@votredomaine.com
-   New-ApplicationAccessPolicy -AppId <client-id> -PolicyScopeGroupId KentSmtpSenders@votredomaine.com -AccessRight RestrictAccess -Description "Limite KENT SMTP à l'expéditeur"
+   New-DistributionGroup -Name "KentGraphSenders" -Members expediteur@votredomaine.com
+   New-ApplicationAccessPolicy -AppId <client-id> -PolicyScopeGroupId KentGraphSenders@votredomaine.com -AccessRight RestrictAccess -Description "Limite l'appli à l'expéditeur"
    ```
-7. Variables (Vercel ou `.env`) :
+6. Variables (Vercel ou `.env`) :
    ```
    SMTP_AUTH_METHOD=oauth2_o365
    O365_TENANT_ID=<Directory (tenant) ID>
    O365_CLIENT_ID=<Application (client) ID>
    O365_CLIENT_SECRET=<Value du secret, pas l'ID>
    O365_SENDER_EMAIL=expediteur@votredomaine.com
-   SMTP_HOST=smtp.office365.com
-   SMTP_PORT=587
-   SMTP_FROM_EMAIL=expediteur@votredomaine.com
    ```
-   `msal` (le paquet OAuth2) est déjà dans `requirements.txt`, aucune
-   installation supplémentaire n'est nécessaire.
+   (`SMTP_HOST`/`SMTP_PORT`/`SMTP_FROM_EMAIL` ne sont pas utilisés dans ce
+   mode.) `msal` est déjà dans `requirements.txt`.
+
+Limite : pièces jointes inline via `sendMail` plafonnées à ~4 Mo au total
+par message (au-delà, erreur claire plutôt qu'un envoi tronqué) — largement
+suffisant pour un OM+BC, à surveiller si beaucoup de pièces jointes lourdes.
 
 > **Protection de déploiement** : si l'authentification Vercel (Deployment
 > Protection) est active, l'appel interne Flask → `/api/render_pdf` est
