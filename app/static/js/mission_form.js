@@ -61,7 +61,7 @@ function relayText(option) {
   const ln = (option.dataset.ln || "").trim();
   const tel = (option.dataset.tel || "").trim();
   const who = (fn ? fn.charAt(0).toUpperCase() + "." : "") + ln;
-  return "Relais " + who + (tel ? " (" + tel + ")" : "");
+  return "Relais avec " + who + (tel ? " (" + tel + ")" : "");
 }
 
 // Affiche / masque le sélecteur de chauffeur de relais selon le véhicule.
