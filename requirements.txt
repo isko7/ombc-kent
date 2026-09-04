@@ -4,7 +4,13 @@ cryptography>=42.0
 pypdf>=5.0,<6.0
 reportlab>=4.0,<5.0
 Pillow>=10.0,<12.0
+msal>=1.28,<2.0
 
 # Rendu HTML -> PDF en local (PDF_ENGINE=wkhtmltopdf) : nécessite le binaire
 # système wkhtmltopdf. Sur Vercel (PDF_ENGINE=http) c'est la fonction Node
 # api/render_pdf.js qui s'en charge, aucun binaire à installer.
+#
+# msal : nécessaire pour SMTP_AUTH_METHOD=oauth2_o365 (Microsoft 365 /
+# Exchange Online). Dans requirements.txt (pas requirements-optional.txt)
+# car Vercel n'installe que ce fichier — sinon l'import échoue en prod
+# même si les variables O365_* sont configurées.

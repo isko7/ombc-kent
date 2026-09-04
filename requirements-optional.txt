@@ -1,4 +1,0 @@
-# Nécessaire uniquement si SMTP_AUTH_METHOD=oauth2_o365 dans .env
-# (authentification SMTP par OAuth2 pour Microsoft 365 / Exchange Online,
-# requis car O365 a désactivé l'authentification SMTP par mot de passe).
-msal>=1.28,<2.0

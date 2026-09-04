@@ -10,10 +10,11 @@ Deux modes, choisis par SMTP_AUTH_METHOD dans .env :
 
 - "oauth2_o365" : Microsoft 365 / Exchange Online a désactivé
   l'authentification SMTP par mot de passe ; il faut un jeton OAuth2
-  (flux "client credentials" avec msal). Nécessite le paquet optionnel
-  `msal` (voir requirements-optional.txt) — non testé dans ce
-  bac à sable (pas d'accès réseau ici), mais suit le schéma standard
-  documenté par Microsoft pour SMTP AUTH XOAUTH2.
+  (flux "client credentials" avec msal, paquet dans requirements.txt).
+  Suit le schéma standard documenté par Microsoft pour SMTP AUTH XOAUTH2.
+  Voir README > Configuration email pour le setup Azure AD complet
+  (App registration, permission SMTP.SendAsApp, SMTP AUTH activé sur la
+  boîte mail).
 
 Un timeout explicite est posé sur la connexion SMTP : sans lui, un
 serveur SMTP injoignable (mauvais host, pare-feu, etc.) peut faire
@@ -41,7 +42,7 @@ def _get_o365_access_token():
     except ImportError as e:
         raise EmailError(
             "SMTP_AUTH_METHOD=oauth2_o365 nécessite le paquet 'msal' "
-            "(pip install msal) — voir requirements-optional.txt"
+            "(pip install msal, ou redéployer si requirements.txt vient d'être mis à jour)"
         ) from e
     app = msal.ConfidentialClientApplication(
         O365_CLIENT_ID,
