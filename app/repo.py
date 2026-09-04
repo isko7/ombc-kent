@@ -293,6 +293,40 @@ def create_mission(data):
         return mission_id
 
 
+def duplicate_mission(mission_id):
+    """Crée une copie de la mission (nouvelle référence, statut réinitialisé
+    à « brouillon », trajets/arrêts recopiés). Les pièces jointes et
+    l'historique d'envoi ne sont pas dupliqués. Renvoie le nouvel id."""
+    src = get_mission(mission_id)
+    if not src:
+        return None
+    return create_mission({
+        "driver_id": src["driver_id"],
+        "mission_date": src["mission_date"],
+        "motif": src["motif"],
+        "remarks": src["remarks"],
+        "client_id": src["client_id"],
+        "emission_date": src["emission_date"],
+        "price": src["price"],
+        "status": "brouillon",
+        "om_template_id": src["om_template_id"],
+        "bc_template_id": src["bc_template_id"],
+        "legs": [
+            {"start_time": l["start_time"], "end_time": l["end_time"], "vehicle_id": l["vehicle_id"],
+             "label": l["label"], "is_checkpoint": l["is_checkpoint"], "is_relay": l.get("is_relay"),
+             "relay_driver_id": l.get("relay_driver_id")}
+            for l in src["legs"]
+        ],
+        "stops": [
+            {"stop_type": s["stop_type"], "stop_date": s["stop_date"], "stop_time": s["stop_time"],
+             "address": s["address"], "city": s["city"], "passenger_count": s["passenger_count"],
+             "passenger_name": s["passenger_name"], "passenger_phone": s["passenger_phone"],
+             "booking_ref": s["booking_ref"]}
+            for s in src["stops"]
+        ],
+    })
+
+
 def update_mission(mission_id, data):
     with get_db() as db:
         db.execute(

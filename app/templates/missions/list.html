@@ -56,6 +56,9 @@
           <td><span class="badge badge--{{ m.status }}">{{ m.status }}</span></td>
           <td class="row-actions">
             <a href="{{ url_for('missions.detail_mission', mission_id=m.id) }}" class="btn btn--ghost btn--sm">Ouvrir</a>
+            <form method="post" action="{{ url_for('missions.duplicate_mission', mission_id=m.id) }}" style="display:inline; margin:0;">
+              <button type="submit" class="btn btn--ghost btn--sm" title="Dupliquer">⧉</button>
+            </form>
           </td>
         </tr>
         {% endfor %}

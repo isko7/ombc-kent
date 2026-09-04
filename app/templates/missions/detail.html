@@ -12,6 +12,9 @@
       <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id) }}" class="btn btn--secondary">⬇ Télécharger OM+BC</a>
       <a href="{{ url_for('missions.email_mission', mission_id=mission.id) }}" class="btn btn--primary">✉ Envoyer par email</a>
       <a href="{{ url_for('missions.edit_mission', mission_id=mission.id) }}" class="btn btn--secondary">Modifier</a>
+      <form method="post" action="{{ url_for('missions.duplicate_mission', mission_id=mission.id) }}" style="margin:0;">
+        <button type="submit" class="btn btn--secondary">⧉ Dupliquer</button>
+      </form>
     </div>
   </div>
 
