@@ -38,12 +38,14 @@ def _parse_legs(form):
         s, e, v, l = _at(starts, i).strip(), _at(ends, i).strip(), _at(vehicle_ids, i), _at(labels, i).strip()
         if not s and not e and not l:
             continue
+        is_relay = v == "relais"
         legs.append({
             "start_time": s,
             "end_time": e,
-            "vehicle_id": int(v) if v else None,
+            "vehicle_id": int(v) if (v and v.isdigit()) else None,
             "label": l,
-            "is_checkpoint": bool(s) and s == e,
+            "is_checkpoint": bool(s) and s == e and not is_relay,
+            "is_relay": is_relay,
         })
     return legs
 

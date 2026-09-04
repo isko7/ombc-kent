@@ -41,6 +41,7 @@
   table.legs td.time { white-space: nowrap; width: 15mm; }
   table.legs td.vehicle { white-space: nowrap; width: 26mm; }
   table.legs tr.pause td { font-style: italic; color: #555; background: #fafafa; }
+  table.legs tr.relais td { font-style: italic; color: #33475b; background: #eef3fa; }
   table.legs tr.checkpoint td { font-weight: 700; }
   .remarks { margin-top: 4mm; }
   .remarks .box {
@@ -87,10 +88,10 @@
     </thead>
     <tbody>
       {% for leg in legs %}
-      <tr class="{{ 'pause' if not leg.vehicle else ('checkpoint' if leg.is_checkpoint else '') }}">
+      <tr class="{{ 'relais' if leg.is_relay else ('pause' if not leg.vehicle else ('checkpoint' if leg.is_checkpoint else '')) }}">
         <td class="time">{{ leg.start_time }}</td>
         <td class="time">{{ leg.end_time }}</td>
-        <td class="vehicle">{{ leg.vehicle or '' }}</td>
+        <td class="vehicle">{{ 'Relais' if leg.is_relay else (leg.vehicle or '') }}</td>
         <td>{{ leg.label }}</td>
       </tr>
       {% endfor %}

@@ -67,9 +67,6 @@
 
     <div class="card">
       <h2>Arrêts — Billet Collectif</h2>
-      <select id="default-vehicle-select" style="display:none;">
-        {% for v in vehicles %}<option value="{{ v.id }}">{{ v.plate }}</option>{% endfor %}
-      </select>
       <table class="edit-rows" id="stops-table">
         <thead>
           <tr>
@@ -111,8 +108,16 @@
 
     <div class="card">
       <h2>Trajets — Ordre de Mission</h2>
-      <div class="btn-row" style="margin:0 0 14px;">
+      <div class="btn-row" style="margin:0 0 14px; align-items:flex-end;">
         <button type="button" id="generate-legs-btn" class="btn btn--secondary btn--sm">⚡ Générer les trajets depuis les arrêts</button>
+        <div class="field" style="margin:0;">
+          <label style="font-size:11px;">Véhicule par défaut</label>
+          <select id="default-vehicle-select">
+            <option value="">— Choisir —</option>
+            {% for v in vehicles %}<option value="{{ v.id }}">{{ v.plate }}{{ ' — ' ~ v.name if v.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <button type="button" id="apply-vehicle-all" class="btn btn--secondary btn--sm">Appliquer à toutes les lignes</button>
       </div>
       <table class="edit-rows" id="legs-table">
         <thead>
@@ -132,8 +137,9 @@
             <td>
               <select name="leg_vehicle_id[]">
                 <option value="">— (pause) —</option>
+                <option value="relais" {{ 'selected' if l.is_relay }}>— (relais) —</option>
                 {% for v in vehicles %}
-                <option value="{{ v.id }}" {{ 'selected' if l.vehicle_id == v.id }}>{{ v.plate }}{{ ' — ' ~ v.name if v.name }}</option>
+                <option value="{{ v.id }}" {{ 'selected' if not l.is_relay and l.vehicle_id == v.id }}>{{ v.plate }}{{ ' — ' ~ v.name if v.name }}</option>
                 {% endfor %}
               </select>
             </td>
@@ -148,7 +154,7 @@
         </tbody>
       </table>
       <button type="button" id="add-leg-row" class="btn btn--secondary btn--sm add-row-btn">+ Ajouter un trajet</button>
-      <div class="hint" style="margin-top:8px;">Un trajet dont l'heure de début = heure de fin est traité comme un point de contrôle (prise/fin de service). Laissez le véhicule vide pour une pause.</div>
+      <div class="hint" style="margin-top:8px;">Début = fin ⇒ point de contrôle (prise/fin de service). <strong>(pause)</strong> : arrêt sans conduite. <strong>(relais)</strong> : changement de chauffeur/véhicule.</div>
     </div>
 
     <div class="btn-row">
@@ -185,6 +191,7 @@
       <td>
         <select name="leg_vehicle_id[]">
           <option value="">— (pause) —</option>
+          <option value="relais">— (relais) —</option>
           {% for v in vehicles %}
           <option value="{{ v.id }}">{{ v.plate }}{{ ' — ' ~ v.name if v.name }}</option>
           {% endfor %}

@@ -2,11 +2,13 @@
 // tableau des trajets (OM) et tableau des arrêts (BC), + un bouton
 // pratique pour pré-remplir les trajets à partir des arrêts saisis.
 
+const DEPOT = "Dépôt KENT";
+const ARROW = " → ";
+
 function addRow(tableBodyId, templateId) {
   const tbody = document.getElementById(tableBodyId);
   const tpl = document.getElementById(templateId);
-  const clone = tpl.content.cloneNode(true);
-  tbody.appendChild(clone);
+  tbody.appendChild(tpl.content.cloneNode(true));
 }
 
 function removeRow(button) {
@@ -34,14 +36,31 @@ function fillLegRow(tr, start, end, vehicleId, label) {
   tr.querySelector('[name="leg_label[]"]').value = label || "";
 }
 
+function defaultVehicleValue() {
+  const sel = document.getElementById("default-vehicle-select");
+  return sel ? sel.value : "";
+}
+
+// Applique le "véhicule par défaut" à toutes les lignes de trajet.
+// Les lignes marquées (relais) sont laissées telles quelles.
+function applyVehicleToAllLegs() {
+  const v = defaultVehicleValue();
+  if (!v) {
+    alert("Choisissez d'abord un véhicule dans « Véhicule par défaut ».");
+    return;
+  }
+  document.querySelectorAll('#legs-body select[name="leg_vehicle_id[]"]').forEach((sel) => {
+    if (sel.value !== "relais") sel.value = v;
+  });
+}
+
 // Construit une proposition de trajets OM à partir des arrêts BC déjà
-// saisis : "Prise de service" -> segments entre arrêts consécutifs ->
-// "Fin de service". L'utilisateur garde la main pour ajouter des pauses
-// ou ajuster les libellés ensuite.
+// saisis : prise de service -> Dépôt vers 1er arrêt -> segments entre
+// arrêts -> dernier arrêt vers Dépôt -> fin de service. L'utilisateur
+// garde la main pour ajouter des pauses/relais ou ajuster les libellés.
 function generateLegsFromStops() {
   const stopRows = Array.from(document.querySelectorAll("#stops-body tr"));
   const stops = stopRows.map((tr) => ({
-    type: tr.querySelector('[name="stop_type[]"]').value,
     time: tr.querySelector('[name="stop_time[]"]').value,
     address: tr.querySelector('[name="stop_address[]"]').value,
     city: tr.querySelector('[name="stop_city[]"]').value,
@@ -54,27 +73,23 @@ function generateLegsFromStops() {
 
   const legsBody = document.getElementById("legs-body");
   legsBody.innerHTML = "";
-  const defaultVehicle = document.getElementById("default-vehicle-select")
-    ? document.getElementById("default-vehicle-select").value
-    : "";
-
-  const label = (s) => s.city ? `${s.address}, ${s.city}` : s.address;
-
-  addRow("legs-body", "leg-row-template");
-  fillLegRow(legsBody.lastElementChild, stops[0].time, stops[0].time, defaultVehicle, "Prise de service - Dépôt KENT");
-
-  for (let i = 0; i < stops.length - 1; i++) {
-    addRow("legs-body", "leg-row-template");
-    fillLegRow(
-      legsBody.lastElementChild,
-      stops[i].time, stops[i + 1].time, defaultVehicle,
-      `${label(stops[i])} \u2192 ${label(stops[i + 1])}`
-    );
-  }
-
+  const veh = defaultVehicleValue();
+  const label = (s) => (s.city ? `${s.address}, ${s.city}` : s.address);
+  const first = stops[0];
   const last = stops[stops.length - 1];
-  addRow("legs-body", "leg-row-template");
-  fillLegRow(legsBody.lastElementChild, last.time, last.time, defaultVehicle, "Fin de service - Dépôt KENT");
+
+  const add = (start, end, vehicleId, lbl) => {
+    addRow("legs-body", "leg-row-template");
+    fillLegRow(legsBody.lastElementChild, start, end, vehicleId, lbl);
+  };
+
+  add(first.time, first.time, veh, `Prise de service - ${DEPOT}`);
+  add("", first.time, veh, `${DEPOT}${ARROW}${label(first)}`);
+  for (let i = 0; i < stops.length - 1; i++) {
+    add(stops[i].time, stops[i + 1].time, veh, `${label(stops[i])}${ARROW}${label(stops[i + 1])}`);
+  }
+  add(last.time, "", veh, `${label(last)}${ARROW}${DEPOT}`);
+  add(last.time, last.time, veh, `Fin de service - ${DEPOT}`);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -86,6 +101,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const genBtn = document.getElementById("generate-legs-btn");
   if (genBtn) genBtn.addEventListener("click", generateLegsFromStops);
+
+  const applyBtn = document.getElementById("apply-vehicle-all");
+  if (applyBtn) applyBtn.addEventListener("click", applyVehicleToAllLegs);
 
   document.body.addEventListener("click", (e) => {
     if (e.target.matches(".row-remove")) removeRow(e.target);

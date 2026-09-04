@@ -314,9 +314,10 @@ def _replace_legs(db, mission_id, legs):
     for i, leg in enumerate(legs):
         db.execute(
             """INSERT INTO mission_legs (mission_id, position, start_time, end_time, vehicle_id,
-               label, is_checkpoint) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               label, is_checkpoint, is_relay) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (mission_id, i, leg["start_time"], leg["end_time"], leg.get("vehicle_id") or None,
-             leg["label"], 1 if leg.get("is_checkpoint") else 0),
+             leg["label"], 1 if leg.get("is_checkpoint") else 0,
+             1 if leg.get("is_relay") else 0),
         )
 
 
