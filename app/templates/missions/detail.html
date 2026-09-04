@@ -15,6 +15,9 @@
       <form method="post" action="{{ url_for('missions.duplicate_mission', mission_id=mission.id) }}" style="margin:0;">
         <button type="submit" class="btn btn--secondary">⧉ Dupliquer</button>
       </form>
+      <form method="post" action="{{ url_for('missions.create_return_mission', mission_id=mission.id) }}" style="margin:0;">
+        <button type="submit" class="btn btn--secondary">↩ Créer le retour</button>
+      </form>
     </div>
   </div>
 

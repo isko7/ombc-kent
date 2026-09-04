@@ -194,6 +194,15 @@ def duplicate_mission(mission_id):
     return redirect(url_for("missions.edit_mission", mission_id=new_id))
 
 
+@bp.route("/<int:mission_id>/retour", methods=["POST"])
+def create_return_mission(mission_id):
+    new_id = repo.create_return_mission(mission_id)
+    if not new_id:
+        abort(404)
+    flash("Trajet retour créé (arrêts et trajets inversés) — vérifiez date et horaires.", "success")
+    return redirect(url_for("missions.edit_mission", mission_id=new_id))
+
+
 @bp.route("/<int:mission_id>/pdf")
 def mission_pdf(mission_id):
     try:
