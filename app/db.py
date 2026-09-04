@@ -16,7 +16,7 @@ from contextlib import contextmanager
 import pymysql
 from pymysql.cursors import DictCursor
 
-from app.config import DB_CONFIG
+from app.config import DB_CONFIG, env
 
 # Index déclarés en ligne dans les CREATE TABLE : MySQL ne connaît pas
 # « CREATE INDEX IF NOT EXISTS ».
@@ -173,15 +173,45 @@ def _connect():
         charset="utf8mb4",
         cursorclass=DictCursor,
         autocommit=False,
-        connect_timeout=10,
-        read_timeout=30,
-        write_timeout=30,
+        # Timeouts courts : sur Vercel une fonction a ~60 s. Mieux vaut une
+        # erreur claire tout de suite qu'un FUNCTION_INVOCATION_FAILED.
+        connect_timeout=int(env("MYSQL_CONNECT_TIMEOUT", "8")),
+        read_timeout=20,
+        write_timeout=20,
     )
     if cfg.get("ssl"):
         # ssl={} suffit pour activer TLS sans vérification stricte du CA,
         # ce que la plupart des MySQL managés acceptent.
         kwargs["ssl"] = {}
     return pymysql.connect(**kwargs)
+
+
+def sanitized_config():
+    """Config de connexion sans le mot de passe (pour /admin/dbcheck)."""
+    cfg = DB_CONFIG
+    return {
+        "host": cfg["host"], "port": cfg["port"], "user": cfg["user"],
+        "database": cfg["database"], "ssl": cfg["ssl"],
+        "password_set": bool(cfg["password"]),
+    }
+
+
+def check_connection():
+    """Tente une connexion + SELECT VERSION(). Renvoie un dict de diagnostic."""
+    import traceback
+    out = {"config": sanitized_config()}
+    try:
+        conn = _connect()
+        with conn.cursor() as cur:
+            cur.execute("SELECT VERSION() AS v")
+            out["version"] = cur.fetchone()["v"]
+        conn.close()
+        out["ok"] = True
+    except Exception as e:
+        out["ok"] = False
+        out["error"] = f"{type(e).__name__}: {e}"
+        out["trace"] = traceback.format_exc().splitlines()[-5:]
+    return out
 
 
 _conn = None
