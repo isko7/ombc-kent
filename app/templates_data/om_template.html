@@ -38,11 +38,23 @@
     background: #222; color: #fff; font-weight: 700; text-transform: uppercase; font-size: 8.3pt;
     letter-spacing: 0.3px;
   }
-  table.legs td.time { white-space: nowrap; width: 15mm; }
-  table.legs td.vehicle { white-space: nowrap; width: 26mm; }
+  table.legs td.time { white-space: nowrap; width: 15mm; vertical-align: middle; }
+  table.legs td.vehicle { white-space: nowrap; width: 26mm; vertical-align: middle; }
   table.legs tr.pause td { font-style: italic; color: #555; background: #fafafa; }
   table.legs tr.relais td { font-style: italic; color: #33475b; background: #eef3fa; }
   table.legs tr.checkpoint td { font-weight: 700; }
+  /* Trajet en 2 cases (De / À) + une colonne flèche entre les deux, sans
+     bordure interne visible : ça se lit comme une seule case avec la
+     flèche flottant au milieu — même principe que le tableau du BC
+     (ville en gras au-dessus de l'adresse). */
+  table.legs td.leg-from, table.legs td.leg-to { width: 34mm; vertical-align: middle; }
+  table.legs td.leg-from { border-right: hidden; text-align: right; }
+  table.legs td.leg-to { border-left: hidden; }
+  table.legs td.leg-arrow {
+    width: 7mm; text-align: center; color: #888; border-left: hidden; border-right: hidden;
+    vertical-align: middle;
+  }
+  table.legs td.leg-single { vertical-align: middle; }
   .remarks { margin-top: 4mm; }
   .remarks .box {
     border: 0.6pt solid #999; min-height: 16mm; padding: 2.5mm; font-size: 9.7pt;
@@ -83,7 +95,7 @@
         <th style="width:15mm;">Début</th>
         <th style="width:15mm;">Fin</th>
         <th style="width:26mm;">Véhicule</th>
-        <th>Trajet</th>
+        <th colspan="3">Trajet</th>
       </tr>
     </thead>
     <tbody>
@@ -92,7 +104,13 @@
         <td class="time">{{ leg.start_time }}</td>
         <td class="time">{{ leg.end_time }}</td>
         <td class="vehicle">{{ 'Relais' if leg.is_relay else (leg.vehicle or '') }}</td>
-        <td>{{ leg.label }}</td>
+        {% if leg.label_kind == 'split' %}
+        <td class="leg-from">{{ leg.from_html }}</td>
+        <td class="leg-arrow">&rarr;</td>
+        <td class="leg-to">{{ leg.to_html }}</td>
+        {% else %}
+        <td class="leg-single" colspan="3">{{ leg.label }}</td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
