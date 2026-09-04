@@ -80,6 +80,7 @@ SCHEMA_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS missions (
         id INT AUTO_INCREMENT PRIMARY KEY,
         reference VARCHAR(64) UNIQUE,
+        mission_name VARCHAR(255),
         driver_id INT NOT NULL,
         mission_date VARCHAR(10) NOT NULL,
         motif VARCHAR(255) NOT NULL DEFAULT 'Transport Occasionnel',
@@ -164,6 +165,7 @@ SCHEMA_STATEMENTS = [
 MIGRATIONS = [
     "ALTER TABLE mission_legs ADD COLUMN is_relay TINYINT(1) NOT NULL DEFAULT 0",
     "ALTER TABLE mission_legs ADD COLUMN relay_driver_id INT NULL",
+    "ALTER TABLE missions ADD COLUMN mission_name VARCHAR(255)",
 ]
 
 

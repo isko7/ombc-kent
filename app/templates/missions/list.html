@@ -44,12 +44,13 @@
     {% if missions %}
     <table class="data-table">
       <thead>
-        <tr><th>Référence</th><th>Date</th><th>Chauffeur</th><th>Client</th><th>Statut</th><th></th></tr>
+        <tr><th>Référence</th><th>Nom</th><th>Date</th><th>Chauffeur</th><th>Client</th><th>Statut</th><th></th></tr>
       </thead>
       <tbody>
         {% for m in missions %}
         <tr>
           <td><a href="{{ url_for('missions.detail_mission', mission_id=m.id) }}"><strong>{{ m.reference }}</strong></a></td>
+          <td>{{ m.mission_name or '—' }}</td>
           <td>{{ m.mission_date | fmt_date_long }} <span class="pill-note">{{ m.mission_date | day_label }}</span></td>
           <td>{{ m.driver_last_name }} {{ m.driver_first_name }}</td>
           <td>{{ m.client_name or '—' }}</td>

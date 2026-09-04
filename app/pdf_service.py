@@ -147,6 +147,7 @@ def build_om_context(mission):
         "logo_base64": get_logo_base64(),
         "company": COMPANY,
         "om_legal_ref": OM_LEGAL_REF,
+        "mission_name": mission.get("mission_name") or "",
         "driver_name": f"{driver['last_name']} {driver['first_name']}",
         "mission_day_label": day_label(mission["mission_date"]),
         "mission_date_label": fmt_date_long(mission["mission_date"]),

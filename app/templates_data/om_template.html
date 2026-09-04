@@ -22,6 +22,7 @@
     text-transform: uppercase;
   }
   .title-block .legal-ref { font-size: 8.5pt; color: #444; font-style: italic; }
+  .title-block .mission-name { font-size: 12pt; font-weight: 700; color: #333; margin: 0 0 1.5mm 0; }
   .driver-band {
     display: table; width: 100%; margin-bottom: 5mm;
     background: #f4f4f4; border: 0.6pt solid #ccc; border-radius: 2pt;
@@ -68,6 +69,7 @@
 
   <div class="title-block">
     <h1>Ordre de mission</h1>
+    {% if mission_name %}<div class="mission-name">{{ mission_name }}</div>{% endif %}
     <div class="legal-ref">Arrêté ministériel du {{ om_legal_ref }}</div>
   </div>
 

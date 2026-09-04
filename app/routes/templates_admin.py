@@ -12,6 +12,7 @@ DEMO_MISSION = {
     "client": {"name": "Simplon Voyages", "address": "39 Route de la Libération",
                "postal_code": "41240", "city": "BEAUCE LA ROMAINE", "phone": "06.60.41.54.58"},
     "mission_date": "2026-09-15",
+    "mission_name": "Navette aéroport",
     "emission_date": "2026-09-01",
     "motif": "Transport Occasionnel",
     "remarks": "Exemple de remarque.",

@@ -88,6 +88,7 @@ def _mission_form_to_data(form):
     data = {
         "driver_id": int(form["driver_id"]) if form.get("driver_id") else None,
         "mission_date": form.get("mission_date") or None,
+        "mission_name": form.get("mission_name", "").strip() or None,
         "motif": form.get("motif", "").strip() or "Transport Occasionnel",
         "remarks": form.get("remarks", "").strip() or None,
         "client_id": int(form["client_id"]) if form.get("client_id") else None,
@@ -144,7 +145,7 @@ def new_mission():
     return render_template("missions/form.html", is_new=True, **_form_context({
         "status": "brouillon", "motif": "Transport Occasionnel",
         "driver_id": None, "client_id": None, "om_template_id": None, "bc_template_id": None,
-        "mission_date": "", "emission_date": "", "price": "", "remarks": "",
+        "mission_date": "", "mission_name": "", "emission_date": "", "price": "", "remarks": "",
         "legs": [], "stops": [],
     }))
 
