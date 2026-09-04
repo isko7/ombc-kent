@@ -21,12 +21,14 @@ def create_app():
     from app.routes.clients import bp as clients_bp
     from app.routes.missions import bp as missions_bp
     from app.routes.templates_admin import bp as templates_bp
+    from app.routes.admin import bp as admin_bp
 
     app.register_blueprint(drivers_bp)
     app.register_blueprint(vehicles_bp)
     app.register_blueprint(clients_bp)
     app.register_blueprint(missions_bp)
     app.register_blueprint(templates_bp)
+    app.register_blueprint(admin_bp)
 
     @app.route("/")
     def index():

@@ -75,10 +75,11 @@ Dans *Project → Settings → Environment Variables* :
 
 | Variable | Valeur |
 |---|---|
-| `DATABASE_URL` | l'URL MySQL ci-dessus |
+| `DATABASE_URL` | l'URL MySQL ci-dessus (ou les variables `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_USER` / `MYSQL_PASSWORD` / `MYSQL_DATABASE` / `MYSQL_SSL` séparées — à préférer si le mot de passe contient `@` ou des espaces) |
 | `PDF_ENGINE` | `http` |
 | `PDF_RENDER_SECRET` | une chaîne aléatoire (partagée entre les 2 fonctions, définie une seule fois ici) |
 | `SECRET_KEY` | une chaîne aléatoire |
+| `SEED_SECRET` | une chaîne aléatoire (pour la route d'initialisation, voir §3) |
 | `SMTP_AUTH_METHOD` | `basic` (ou `oauth2_o365`) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | identifiants SMTP |
 | `SMTP_FROM_NAME` / `SMTP_FROM_EMAIL` | expéditeur affiché |
@@ -95,19 +96,27 @@ Pour Microsoft 365 : ajouter `O365_TENANT_ID`, `O365_CLIENT_ID`,
 
 ### 3. Amorcer la base
 
-Une seule fois, depuis votre machine, en pointant sur la base de prod :
+Le schéma se crée tout seul au premier démarrage (`CREATE TABLE IF NOT
+EXISTS`), mais il faut installer les **templates OM/BC par défaut** une fois.
 
-```bash
-python -m venv .venv && .venv\Scripts\activate      # (Linux/mac : source .venv/bin/activate)
-pip install -r requirements.txt
-DATABASE_URL="mysql://...:3306/kent" python seed.py --demo
+**Option simple (Vercel) — aucun accès MySQL requis depuis votre poste :**
+après le 1ᵉʳ déploiement, ouvrir une fois dans le navigateur :
+
+```
+https://<projet>.vercel.app/admin/init?key=<SEED_SECRET>          # schéma + templates
+https://<projet>.vercel.app/admin/init?key=<SEED_SECRET>&demo=1   # + mission de démo
 ```
 
-`seed.py` crée le schéma, installe les templates OM/BC par défaut, et (avec
-`--demo`) une mission d'exemple. Sans `--demo` : schéma + templates seulement.
-Le schéma se crée aussi tout seul au premier démarrage de l'app
-(`CREATE TABLE IF NOT EXISTS`), mais les templates par défaut, eux, viennent
-de `seed.py`.
+La réponse est un JSON listant les actions. La route est idempotente et
+répond 404 si `SEED_SECRET` n'est pas défini.
+
+**Option ligne de commande** (si votre poste peut joindre la base) :
+
+```bash
+python -m venv .venv && .venv\Scripts\activate
+pip install -r requirements.txt
+$env:DATABASE_URL="mysql://...:3306/db"; python seed.py --demo
+```
 
 ### 4. Déployer
 
