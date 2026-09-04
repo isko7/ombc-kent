@@ -6,6 +6,10 @@
       <h1>Templates OM &amp; BC</h1>
       <div class="sub">Le HTML/Jinja2 ci-dessous est stocké en base et sert à générer les PDF. Un seul template actif par type à la fois.</div>
     </div>
+    <form method="post" action="{{ url_for('templates_admin.refresh_defaults') }}"
+          onsubmit="return confirm('Remplacer le HTML des templates « … — standard » par la dernière version livrée avec l\'appli ? Les copies personnalisées ne sont pas touchées.');">
+      <button type="submit" class="btn btn--secondary">⟳ Rafraîchir les templates par défaut</button>
+    </form>
   </div>
 
   {% for label, tpls in [("Ordre de Mission", om_templates), ("Billet Collectif", bc_templates)] %}

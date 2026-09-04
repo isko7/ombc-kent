@@ -4,6 +4,7 @@ from app import repo
 from app.pdf_service import render_template_string, build_om_context, build_bc_context, PdfGenerationError
 from app.utils import fmt_time, fmt_date_short, fmt_date_long, day_label
 from app.config import COMPANY, OM_LEGAL_REF, BC_LEGAL_REF
+from app.seeding import refresh_default_templates
 
 bp = Blueprint("templates_admin", __name__, url_prefix="/templates")
 
@@ -47,6 +48,16 @@ def list_templates_view():
     om_templates = repo.list_templates("OM")
     bc_templates = repo.list_templates("BC")
     return render_template("templates_admin/list.html", om_templates=om_templates, bc_templates=bc_templates)
+
+
+@bp.route("/rafraichir", methods=["POST"])
+def refresh_defaults():
+    """Recharge le HTML des templates « … — standard » depuis
+    app/templates_data/ (utile après une mise à jour de l'appli). N'écrase
+    que ces deux templates-là, pas vos copies personnalisées."""
+    actions = refresh_default_templates()
+    flash("Templates par défaut mis à jour : " + ", ".join(actions), "success")
+    return redirect(url_for("templates_admin.list_templates_view"))
 
 
 @bp.route("/<int:template_id>", methods=["GET", "POST"])
