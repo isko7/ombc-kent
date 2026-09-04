@@ -100,13 +100,20 @@ App Registration Azure AD avec permission d'envoi applicative.
    → cherchez *Office 365 Exchange Online* → **Application permissions**
    → cochez **`SMTP.SendAsApp`** → Add → puis **Grant admin consent**
    (nécessite un rôle Admin global / Exchange).
-5. **Activer l'authentification SMTP sur la boîte mail** qui enverra les
-   emails (désactivée par défaut sur O365) : Exchange admin center →
-   Recipients → Mailboxes → la boîte → *Manage email apps* → activer
-   *Authenticated SMTP*. Ou en PowerShell :
-   ```powershell
-   Set-CASMailbox -Identity expediteur@votredomaine.com -SmtpClientAuthenticationDisabled $false
-   ```
+5. **Activer SMTP AUTH — deux réglages séparés, les deux désactivés par
+   défaut sur O365 (à faire tous les deux, sinon erreur `535 5.7.139
+   SmtpClientAuthentication is disabled for the Tenant`)** :
+   - **Niveau tenant** : admin.microsoft.com → Paramètres → Paramètres de
+     l'organisation → *Services* → « Authentification moderne » →
+     décocher *Turn off SMTP AUTH protocol for your organization*.
+     Ou en PowerShell : `Set-TransportConfig -SmtpClientAuthenticationDisabled $false`
+   - **Niveau boîte mail** : Exchange admin center → Recipients →
+     Mailboxes → la boîte → *Manage email apps* → activer
+     *Authenticated SMTP*. Ou :
+     ```powershell
+     Set-CASMailbox -Identity expediteur@votredomaine.com -SmtpClientAuthenticationDisabled $false
+     ```
+   La propagation peut prendre jusqu'à 1h après le changement.
 6. *(Recommandé)* Restreindre l'app à cette seule boîte mail plutôt que
    tout le tenant, via une Application Access Policy (Exchange Online
    PowerShell) :
