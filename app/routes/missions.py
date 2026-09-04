@@ -331,7 +331,7 @@ def _bulk_email_defaults(missions):
             lines.append(row)
         lines.append("")
     lines += [
-        "N'hésitez pas à revenir vers nous pour toute question.",
+        "Vous en souhaitant bonne réception.",
         "",
         "Cordialement,",
         COMPANY["name"],
