@@ -141,6 +141,8 @@ def _format_leg_label(label):
         return ("single", label)
 
     def side_html(side, stacked):
+        if side.strip().lower() == "dépôt kent":
+            return f"<strong>{side.strip()}</strong>"
         if ", " in side:
             city, rest = side.split(", ", 1)
             return f"<strong>{city}</strong>{'<br>' if stacked else ', '}{rest}"

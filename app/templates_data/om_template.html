@@ -30,6 +30,7 @@
   .driver-band .who { display: table-cell; font-size: 13pt; font-weight: 700; }
   .driver-band .when { display: table-cell; text-align: right; font-size: 13pt; font-weight: 700; text-transform: capitalize; }
   .section-label { font-weight: 700; font-size: 10.5pt; margin: 0 0 2mm 0; }
+  .section-label .mission-name { color: #d32f2f; }
   table.legs { width: 100%; border-collapse: collapse; margin-bottom: 6mm; }
   table.legs th, table.legs td {
     border: 0.6pt solid #999; padding: 1.8mm 2.5mm; font-size: 9.7pt; text-align: left;
@@ -88,7 +89,7 @@
     <div class="when">{{ mission_day_label }} {{ mission_date_label }}</div>
   </div>
 
-  <div class="section-label">Mission :{{ ' ' ~ mission_name if mission_name }}</div>
+  <div class="section-label">Mission :{{ ' ' if mission_name }}{% if mission_name %}<span class="mission-name">{{ mission_name }}</span>{% endif %}</div>
   <table class="legs">
     <thead>
       <tr>
