@@ -125,22 +125,31 @@ def _render_via_http(html: str) -> bytes:
     return out
 
 
-def _bold_leg_label(label):
-    """Met la ville en gras dans un libellé de trajet du type
-    « VILLE, adresse » ou « VILLE1, adr1 → VILLE2, adr2 » (le format produit
-    par « Générer les trajets depuis les arrêts », ville puis adresse
-    séparées par une virgule). Les libellés sans cette forme (pauses,
-    points de contrôle, texte libre) sont laissés tels quels."""
-    if not label:
-        return label
+def _format_leg_label(label):
+    """Formate un libellé de trajet pour l'OM.
 
-    def bold_side(side):
+    - « VILLE1, adr1 → VILLE2, adr2 » (le format produit par « Générer les
+      trajets depuis les arrêts ») -> ("split", de_html, à_html), chaque
+      côté sur 2 lignes (ville en gras, adresse dessous) pour un rendu en
+      2 colonnes + flèche, comme le BC.
+    - tout le reste (pause, point de contrôle, relais, texte libre, ou une
+      seule adresse sans virgule) -> ("single", html) sur une cellule
+      fusionnée ; la ville est quand même mise en gras si le motif
+      "VILLE, adresse" est présent.
+    """
+    if not label:
+        return ("single", label)
+
+    def side_html(side, stacked):
         if ", " in side:
             city, rest = side.split(", ", 1)
-            return f"<strong>{city}</strong>, {rest}"
+            return f"<strong>{city}</strong>{'<br>' if stacked else ', '}{rest}"
         return side
 
-    return " → ".join(bold_side(p) for p in label.split(" → "))
+    parts = label.split(" → ")
+    if len(parts) == 2:
+        return ("split", side_html(parts[0], True), side_html(parts[1], True))
+    return ("single", side_html(label, False))
 
 
 def _default_passenger_count(stops):
@@ -153,14 +162,20 @@ def build_om_context(mission):
     driver = mission["driver"]
     legs = []
     for leg in mission["legs"]:
-        legs.append({
+        formatted = _format_leg_label(leg["label"])
+        leg_ctx = {
             "start_time": fmt_time(leg["start_time"]),
             "end_time": fmt_time(leg["end_time"]),
             "vehicle": leg.get("vehicle_plate"),
-            "label": _bold_leg_label(leg["label"]),
             "is_checkpoint": bool(leg["is_checkpoint"]),
             "is_relay": bool(leg.get("is_relay")),
-        })
+            "label_kind": formatted[0],
+        }
+        if formatted[0] == "split":
+            leg_ctx["from_html"], leg_ctx["to_html"] = formatted[1], formatted[2]
+        else:
+            leg_ctx["label"] = formatted[1]
+        legs.append(leg_ctx)
     return {
         "logo_base64": get_logo_base64(),
         "company": COMPANY,
