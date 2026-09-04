@@ -14,6 +14,18 @@ function removeRow(button) {
   tr.parentNode.removeChild(tr);
 }
 
+// Déplace une ligne d'un cran vers le haut (dir=-1) ou le bas (dir=1).
+// L'ordre du DOM = l'ordre enregistré (le back-end lit les champs dans
+// l'ordre des lignes), donc rien à faire côté serveur.
+function moveRow(button, dir) {
+  const tr = button.closest("tr");
+  if (dir < 0 && tr.previousElementSibling) {
+    tr.parentNode.insertBefore(tr, tr.previousElementSibling);
+  } else if (dir > 0 && tr.nextElementSibling) {
+    tr.parentNode.insertBefore(tr.nextElementSibling, tr);
+  }
+}
+
 function fillLegRow(tr, start, end, vehicleId, label) {
   tr.querySelector('[name="leg_start_time[]"]').value = start || "";
   tr.querySelector('[name="leg_end_time[]"]').value = end || "";
@@ -77,5 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.body.addEventListener("click", (e) => {
     if (e.target.matches(".row-remove")) removeRow(e.target);
+    else if (e.target.matches(".row-up")) moveRow(e.target, -1);
+    else if (e.target.matches(".row-down")) moveRow(e.target, 1);
   });
 });

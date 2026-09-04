@@ -131,6 +131,10 @@ table.edit-rows td { padding: 4px 6px; vertical-align: top; }
 table.edit-rows input, table.edit-rows select { font-size: 13.5px; padding: 7px 8px; }
 table.edit-rows tr.checkpoint-row { background: #f7f4ee; }
 .row-remove { color: var(--err-text); background: none; border: none; cursor: pointer; font-size: 18px; line-height: 1; padding: 6px; }
+table.edit-rows td.row-actions { white-space: nowrap; text-align: right; }
+.row-move { color: var(--muted); background: none; border: none; cursor: pointer; font-size: 12px; line-height: 1; padding: 6px 3px; }
+.row-move:hover { color: var(--ink, #1a1a1a); }
+.row-move:disabled { opacity: .3; cursor: default; }
 .add-row-btn { margin-top: 4px; }
 
 /* ------------------------------------------------------------ mission */
