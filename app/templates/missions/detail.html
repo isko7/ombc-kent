@@ -106,20 +106,31 @@
     {% endfor %}
 
     <form method="post" action="{{ url_for('missions.upload_attachment', mission_id=mission.id) }}" enctype="multipart/form-data"
-          style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-top:10px;">
-      <div class="field" style="margin:0;">
-        <label>Fichier (PDF, PNG, JPG)</label>
-        <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required>
+          id="attach-form" style="margin-top:10px;">
+      <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+        <div class="field" style="margin:0; flex:1; min-width:260px;">
+          <label>Fichier (PDF, PNG, JPG)</label>
+          <div id="attach-dropzone" class="dropzone">
+            <input type="file" id="attach-file" name="file" accept=".pdf,.png,.jpg,.jpeg" required hidden>
+            <div class="dropzone-hint">Glissez-déposez un fichier ici, ou <span class="dropzone-browse">cliquez pour choisir</span></div>
+            <div id="attach-filename" class="dropzone-filename"></div>
+          </div>
+          <input type="hidden" name="pages" id="attach-pages">
+        </div>
+        <div class="field" style="margin:0; min-width:280px;">
+          <label>Position dans le document final</label>
+          <select name="insert_after_page">
+            {% for value, text in positions %}
+            <option value="{{ value }}" {{ 'selected' if value == 1 }}>{{ text }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn--secondary">Joindre</button>
       </div>
-      <div class="field" style="margin:0; min-width:280px;">
-        <label>Position dans le document final</label>
-        <select name="insert_after_page">
-          {% for value, text in positions %}
-          <option value="{{ value }}" {{ 'selected' if value == 1 }}>{{ text }}</option>
-          {% endfor %}
-        </select>
+      <div id="attach-page-picker" class="attach-page-picker" hidden>
+        <div class="hint">PDF de <span id="attach-page-count"></span> page(s) — cliquez celle(s) à joindre :</div>
+        <div id="attach-thumbs" class="attach-thumbs"></div>
       </div>
-      <button type="submit" class="btn btn--secondary">Joindre</button>
     </form>
   </div>
 
@@ -146,4 +157,15 @@
         onsubmit="return confirm('Supprimer définitivement cet ordre de mission ?');">
     <button type="submit" class="btn btn--danger">Supprimer cet ordre de mission</button>
   </form>
+
+  {# PDF.js : uniquement pour prévisualiser/choisir des pages côté navigateur
+     avant l'envoi — si le CDN est bloqué, le picker ne s'affiche pas et le
+     PDF entier est joint (comportement d'avant cette fonctionnalité). #}
+  <script type="module">
+    import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.mjs";
+    window.pdfjsLib = pdfjsLib;
+    window.dispatchEvent(new Event("pdfjs-ready"));
+  </script>
+  <script src="{{ url_for('static', filename='js/attachment_upload.js') }}"></script>
 {% endblock %}

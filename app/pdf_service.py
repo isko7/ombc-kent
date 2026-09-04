@@ -48,6 +48,49 @@ class PdfGenerationError(Exception):
     pass
 
 
+def _parse_page_spec(spec: str, n_pages: int) -> list:
+    """« 1,3,5-7 » (1-indexé) -> [0, 2, 4, 5, 6] (indices 0-based, triés,
+    dédupliqués, hors-limites ignorés)."""
+    indexes = set()
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            a, b = part.split("-", 1)
+            a, b = int(a), int(b)
+        else:
+            a = b = int(part)
+        for p in range(min(a, b), max(a, b) + 1):
+            if 1 <= p <= n_pages:
+                indexes.add(p - 1)
+    if not indexes:
+        raise ValueError(f"aucune page valide dans « {spec} » (document de {n_pages} page(s))")
+    return sorted(indexes)
+
+
+def extract_pdf_pages(pdf_bytes: bytes, pages_spec: str) -> bytes:
+    """Extrait les pages indiquées (ex. "1,3,5-7") d'un PDF — utilisé par
+    l'upload de pièce jointe quand l'utilisateur ne veut garder que
+    certaines pages d'un PDF plus long (choisies via les miniatures
+    PDF.js côté navigateur)."""
+    try:
+        reader = PdfReader(BytesIO(pdf_bytes))
+        n_pages = len(reader.pages)
+    except Exception as e:
+        raise PdfGenerationError(f"PDF illisible : {e}") from e
+    try:
+        indexes = _parse_page_spec(pages_spec, n_pages)
+    except ValueError as e:
+        raise PdfGenerationError(str(e)) from e
+    writer = PdfWriter()
+    for i in indexes:
+        writer.add_page(reader.pages[i])
+    buf = BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
+
+
 def get_logo_base64():
     global _logo_b64_cache
     if _logo_b64_cache is None:

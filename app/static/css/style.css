@@ -169,6 +169,26 @@ table.edit-rows select.relay-driver { width: 100%; background: #eef3fa; }
 .attachment-item .name { font-weight: 600; font-size: 13.5px; }
 .attachment-item .pos { font-size: 12px; color: var(--muted); }
 
+.dropzone {
+  border: 2px dashed var(--line-strong); border-radius: var(--radius); padding: 14px;
+  text-align: center; cursor: pointer; background: #fafaf8;
+}
+.dropzone--over { border-color: var(--red); background: #fff5f4; }
+.dropzone-hint { font-size: 13px; color: var(--muted); }
+.dropzone-browse { color: var(--red); text-decoration: underline; }
+.dropzone-filename { margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--ink); }
+
+.attach-page-picker { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.attach-thumbs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.attach-thumb {
+  border: 2px solid var(--line-strong); border-radius: 4px; padding: 4px; cursor: pointer;
+  text-align: center; background: #fff;
+}
+.attach-thumb canvas { display: block; max-width: 100%; }
+.attach-thumb__label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.attach-thumb.selected { border-color: var(--red); background: #fff5f4; }
+.attach-thumb.selected .attach-thumb__label { color: var(--red); font-weight: 700; }
+
 .pill-note { display:inline-block; background:#f1eee7; color:var(--ink-soft); font-size:12px; padding:2px 9px; border-radius:20px; }
 
 footer.app-footer { text-align: center; color: var(--muted); font-size: 12px; padding: 30px 0; }

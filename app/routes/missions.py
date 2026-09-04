@@ -8,7 +8,10 @@ from werkzeug.utils import secure_filename
 
 from app import repo
 from app.config import COMPANY, RANDSTAD_EMAIL
-from app.pdf_service import generate_mission_pdf, PdfGenerationError, POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC
+from app.pdf_service import (
+    generate_mission_pdf, extract_pdf_pages, PdfGenerationError,
+    POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC,
+)
 from app.email_service import send_mission_email, send_bulk_email, EmailError
 from app.utils import fmt_date_full, fmt_date_short, fmt_time
 
@@ -238,12 +241,21 @@ def upload_attachment(mission_id):
     if not content:
         flash("Fichier vide.", "error")
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
+
+    filename = secure_filename(file.filename)
+    pages_spec = request.form.get("pages", "").strip()
+    if ext == ".pdf" and pages_spec:
+        try:
+            content = extract_pdf_pages(content, pages_spec)
+        except PdfGenerationError as e:
+            flash(f"Sélection de pages invalide : {e}", "error")
+            return redirect(url_for("missions.detail_mission", mission_id=mission_id))
+        filename = f"{Path(filename).stem}_p{pages_spec.replace(',', '+')}.pdf"
+
     insert_after_page = request.form.get("insert_after_page", type=int)
     if insert_after_page is None:
         insert_after_page = POSITION_AFTER_OM
-    repo.add_attachment(
-        mission_id, secure_filename(file.filename), content, file.mimetype, insert_after_page
-    )
+    repo.add_attachment(mission_id, filename, content, file.mimetype, insert_after_page)
     flash("Pièce jointe ajoutée.", "success")
     return redirect(url_for("missions.detail_mission", mission_id=mission_id))
 
