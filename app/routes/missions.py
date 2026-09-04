@@ -185,6 +185,15 @@ def delete_mission(mission_id):
     return redirect(url_for("missions.list_missions_view"))
 
 
+@bp.route("/<int:mission_id>/dupliquer", methods=["POST"])
+def duplicate_mission(mission_id):
+    new_id = repo.duplicate_mission(mission_id)
+    if not new_id:
+        abort(404)
+    flash("Ordre de mission dupliqué — pensez à ajuster la date.", "success")
+    return redirect(url_for("missions.edit_mission", mission_id=new_id))
+
+
 @bp.route("/<int:mission_id>/pdf")
 def mission_pdf(mission_id):
     try:
