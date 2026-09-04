@@ -8,19 +8,27 @@ Deux modes, choisis par SMTP_AUTH_METHOD dans .env :
   la plupart des hébergeurs. C'est le mode testé dans cet environnement
   (le code ci-dessous est du smtplib standard).
 
-- "oauth2_o365" : Microsoft 365 / Exchange Online a désactivé
-  l'authentification SMTP par mot de passe ; il faut un jeton OAuth2
-  (flux "client credentials" avec msal, paquet dans requirements.txt).
-  Suit le schéma standard documenté par Microsoft pour SMTP AUTH XOAUTH2.
+- "oauth2_o365" : Microsoft 365 / Exchange Online, via l'API **Microsoft
+  Graph** (`POST /users/{expéditeur}/sendMail`), en OAuth2 client-
+  credentials (msal). On n'utilise volontairement PAS le protocole SMTP
+  AUTH classique : il est traité comme une « authentification legacy »
+  par Microsoft et bloqué dès que les Security Defaults / Conditional
+  Access sont actifs sur le tenant (cas de la plupart des tenants créés
+  récemment) — désactiver cette protection tenant-wide juste pour
+  l'email est un compromis de sécurité qu'on préfère éviter. Graph est
+  une API REST « moderne », non concernée par ce blocage.
   Voir README > Configuration email pour le setup Azure AD complet
-  (App registration, permission SMTP.SendAsApp, SMTP AUTH activé sur la
-  boîte mail).
+  (App registration, permission Graph `Mail.Send`, admin consent).
 
-Un timeout explicite est posé sur la connexion SMTP : sans lui, un
-serveur SMTP injoignable (mauvais host, pare-feu, etc.) peut faire
-attendre la requête indéfiniment plutôt que d'échouer proprement.
+Un timeout explicite est posé sur les appels réseau : sans lui, un
+serveur injoignable (mauvais host, pare-feu, etc.) peut faire attendre
+la requête indéfiniment plutôt que d'échouer proprement.
 """
+import base64
+import json
 import smtplib
+import urllib.error
+import urllib.request
 from email.message import EmailMessage
 
 from app import repo
@@ -29,53 +37,25 @@ from app.config import (
     SMTP_AUTH_METHOD, O365_TENANT_ID, O365_CLIENT_ID, O365_CLIENT_SECRET, O365_SENDER_EMAIL,
 )
 
-SMTP_TIMEOUT_SECONDS = 20
+TIMEOUT_SECONDS = 20
+GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+# Limite documentée de sendMail avec pièces jointes en base64 inline ; au-delà
+# il faudrait un upload session (non implémenté ici, cas rare pour des OM+BC).
+GRAPH_MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 
 
 class EmailError(Exception):
     pass
 
 
-def _get_o365_access_token():
-    try:
-        import msal
-    except ImportError as e:
-        raise EmailError(
-            "SMTP_AUTH_METHOD=oauth2_o365 nécessite le paquet 'msal' "
-            "(pip install msal, ou redéployer si requirements.txt vient d'être mis à jour)"
-        ) from e
-    app = msal.ConfidentialClientApplication(
-        O365_CLIENT_ID,
-        authority=f"https://login.microsoftonline.com/{O365_TENANT_ID}",
-        client_credential=O365_CLIENT_SECRET,
-    )
-    result = app.acquire_token_for_client(scopes=["https://outlook.office365.com/.default"])
-    if "access_token" not in result:
-        raise EmailError(f"Échec d'obtention du jeton O365 : {result.get('error_description')}")
-    return result["access_token"]
-
-
-def _build_xoauth2_string(user, token):
-    return f"user={user}\x01auth=Bearer {token}\x01\x01"
-
-
+# --------------------------------------------------------- mode "basic"
 def _send_via_smtp(msg: EmailMessage):
-    if SMTP_AUTH_METHOD == "oauth2_o365":
-        token = _get_o365_access_token()
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-            auth_string = _build_xoauth2_string(O365_SENDER_EMAIL, token)
-            server.docmd("AUTH", "XOAUTH2 " + smtplib.base64.b64encode(auth_string.encode()).decode())
-            server.send_message(msg)
-    else:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.send_message(msg)
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=TIMEOUT_SECONDS) as server:
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(SMTP_USER, SMTP_PASS)
+        server.send_message(msg)
 
 
 def _build_message(to_addresses, cc_addresses, subject, body, attachments):
@@ -92,12 +72,85 @@ def _build_message(to_addresses, cc_addresses, subject, body, attachments):
     return msg
 
 
+# ----------------------------------------------------- mode "oauth2_o365"
+def _get_graph_access_token():
+    try:
+        import msal
+    except ImportError as e:
+        raise EmailError(
+            "SMTP_AUTH_METHOD=oauth2_o365 nécessite le paquet 'msal' "
+            "(déjà dans requirements.txt — redéployez si l'erreur persiste)"
+        ) from e
+    app = msal.ConfidentialClientApplication(
+        O365_CLIENT_ID,
+        authority=f"https://login.microsoftonline.com/{O365_TENANT_ID}",
+        client_credential=O365_CLIENT_SECRET,
+    )
+    result = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
+    if "access_token" not in result:
+        raise EmailError(f"Échec d'obtention du jeton Graph : {result.get('error_description')}")
+    return result["access_token"]
+
+
+def _send_via_graph(to_addresses, cc_addresses, subject, body, attachments):
+    token = _get_graph_access_token()
+
+    graph_attachments = []
+    total_bytes = len(body.encode("utf-8"))
+    for pdf_bytes, filename in attachments:
+        total_bytes += len(pdf_bytes)
+        graph_attachments.append({
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            "name": filename,
+            "contentType": "application/pdf",
+            "contentBytes": base64.b64encode(pdf_bytes).decode("ascii"),
+        })
+    if total_bytes > GRAPH_MAX_MESSAGE_BYTES:
+        raise EmailError(
+            f"Message trop volumineux pour l'API Graph ({total_bytes // 1024} Ko, limite ~4 Mo) "
+            "— réduisez le nombre ou la taille des pièces jointes."
+        )
+
+    payload = {
+        "message": {
+            "subject": subject,
+            "body": {"contentType": "Text", "content": body},
+            "toRecipients": [{"emailAddress": {"address": a}} for a in to_addresses],
+            "attachments": graph_attachments,
+        },
+        "saveToSentItems": "true",
+    }
+    if cc_addresses:
+        payload["message"]["ccRecipients"] = [{"emailAddress": {"address": a}} for a in cc_addresses]
+
+    req = urllib.request.Request(
+        f"{GRAPH_BASE}/users/{O365_SENDER_EMAIL}/sendMail",
+        data=json.dumps(payload).encode("utf-8"), method="POST",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS):
+            pass
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "ignore")[:500]
+        raise EmailError(f"Microsoft Graph a refusé l'envoi ({e.code}) : {detail}") from e
+    except Exception as e:
+        raise EmailError(f"Microsoft Graph injoignable : {e}") from e
+
+
+# --------------------------------------------------------------- dispatch
+def _send(to_addresses, cc_addresses, subject, body, attachments):
+    if SMTP_AUTH_METHOD == "oauth2_o365":
+        _send_via_graph(to_addresses, cc_addresses, subject, body, attachments)
+    else:
+        _send_via_smtp(_build_message(to_addresses, cc_addresses, subject, body, attachments))
+
+
 def send_mission_email(mission_id, to_addresses, cc_addresses, subject, body, pdf_bytes, pdf_filename):
     """to_addresses / cc_addresses : listes de chaînes email. Une seule
     mission -> un seul PDF joint, journalisé sur cette mission."""
-    msg = _build_message(to_addresses, cc_addresses, subject, body, [(pdf_bytes, pdf_filename)])
     try:
-        _send_via_smtp(msg)
+        _send(to_addresses, cc_addresses, subject, body, [(pdf_bytes, pdf_filename)])
     except Exception as e:
         repo.log_email(
             mission_id, ", ".join(to_addresses), ", ".join(cc_addresses or []),
@@ -115,10 +168,9 @@ def send_bulk_email(mission_ids, to_addresses, cc_addresses, subject, body, atta
     """Envoi groupé : plusieurs missions dans un seul email, un PDF par
     mission en pièce jointe. Journalise l'envoi sur chacune des missions
     (visible dans leur historique respectif)."""
-    msg = _build_message(to_addresses, cc_addresses, subject, body, attachments)
     to_str, cc_str = ", ".join(to_addresses), ", ".join(cc_addresses or [])
     try:
-        _send_via_smtp(msg)
+        _send(to_addresses, cc_addresses, subject, body, attachments)
     except Exception as e:
         for mission_id in mission_ids:
             repo.log_email(mission_id, to_str, cc_str, subject, body, status="failed", error_message=str(e))
