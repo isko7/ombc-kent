@@ -11,18 +11,39 @@ from app.config import BASE_DIR
 TEMPLATES_DIR = BASE_DIR / "app" / "templates_data"
 
 
+_DEFAULTS = {
+    "OM": ("Ordre de Mission — standard", "om_template.html"),
+    "BC": ("Billet Collectif — standard", "bc_template.html"),
+}
+
+
 def seed_templates():
     """Installe les templates OM/BC par défaut s'ils n'existent pas.
     Retourne la liste des actions effectuées."""
     done = []
-    if not repo.list_templates("OM"):
-        html = (TEMPLATES_DIR / "om_template.html").read_text(encoding="utf-8")
-        repo.create_template("OM", "Ordre de Mission — standard", html, activate=True)
-        done.append("template OM créé")
-    if not repo.list_templates("BC"):
-        html = (TEMPLATES_DIR / "bc_template.html").read_text(encoding="utf-8")
-        repo.create_template("BC", "Billet Collectif — standard", html, activate=True)
-        done.append("template BC créé")
+    for type_, (name, filename) in _DEFAULTS.items():
+        if not repo.list_templates(type_):
+            html = (TEMPLATES_DIR / filename).read_text(encoding="utf-8")
+            repo.create_template(type_, name, html, activate=True)
+            done.append(f"template {type_} créé")
+    return done
+
+
+def refresh_default_templates():
+    """Remplace le HTML des templates « … — standard » par le contenu
+    actuel des fichiers app/templates_data/. ⚠️ écrase les personnalisations
+    faites sur ces templates-là (les copies ne sont pas touchées)."""
+    done = []
+    for type_, (name, filename) in _DEFAULTS.items():
+        html = (TEMPLATES_DIR / filename).read_text(encoding="utf-8")
+        matches = [t for t in repo.list_templates(type_) if t["name"] == name]
+        if matches:
+            for t in matches:
+                repo.update_template(t["id"], name, html)
+                done.append(f"template {type_} #{t['id']} mis à jour")
+        else:
+            repo.create_template(type_, name, html, activate=True)
+            done.append(f"template {type_} créé")
     return done
 
 

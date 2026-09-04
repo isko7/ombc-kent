@@ -141,6 +141,7 @@ def build_om_context(mission):
             "vehicle": leg.get("vehicle_plate"),
             "label": leg["label"],
             "is_checkpoint": bool(leg["is_checkpoint"]),
+            "is_relay": bool(leg.get("is_relay")),
         })
     return {
         "logo_base64": get_logo_base64(),

@@ -6,11 +6,29 @@
 // Le rendu respecte les règles CSS @page (size / margin) des templates
 // grâce à preferCSSPageSize, pour rester proche de la sortie wkhtmltopdf.
 
+const path = require('path');
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 
 // Pas de WebGL/GPU : inutile pour un rendu PDF, et plus rapide au démarrage.
 chromium.setGraphicsMode = false;
+
+// Polices : le runtime Vercel n'a quasiment aucune police -> les glyphes
+// non-ASCII (flèche →, etc.) et le rendu global seraient dégradés. On
+// enregistre DejaVu Sans (que les templates demandent explicitement) avant
+// le lancement de Chrome. includeFiles: "fonts/**" dans vercel.json garantit
+// que les .ttf sont dans le bundle de la fonction.
+const FONT_DIR = path.join(process.cwd(), 'fonts');
+let fontsReady;
+function registerFonts() {
+  if (!fontsReady) {
+    fontsReady = Promise.all([
+      chromium.font(path.join(FONT_DIR, 'DejaVuSans.ttf')),
+      chromium.font(path.join(FONT_DIR, 'DejaVuSans-Bold.ttf')),
+    ]).catch((e) => { console.error('font register failed:', e && e.message); });
+  }
+  return fontsReady;
+}
 
 async function readJsonBody(req) {
   if (req.body) {
@@ -48,6 +66,7 @@ module.exports = async (req, res) => {
 
   let browser;
   try {
+    await registerFonts();
     browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,

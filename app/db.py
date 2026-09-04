@@ -106,6 +106,7 @@ SCHEMA_STATEMENTS = [
         vehicle_id INT NULL,
         label VARCHAR(255) NOT NULL,
         is_checkpoint TINYINT(1) NOT NULL DEFAULT 0,
+        is_relay TINYINT(1) NOT NULL DEFAULT 0,
         KEY idx_legs_mission (mission_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
@@ -153,6 +154,14 @@ SCHEMA_STATEMENTS = [
         KEY idx_email_mission (mission_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+]
+
+
+# Migrations légères pour les bases déjà créées (les CREATE TABLE IF NOT
+# EXISTS ci-dessus ne modifient pas une table existante). Chaque instruction
+# est jouée en ignorant l'erreur « colonne déjà présente » (MySQL 1060).
+MIGRATIONS = [
+    "ALTER TABLE mission_legs ADD COLUMN is_relay TINYINT(1) NOT NULL DEFAULT 0",
 ]
 
 
@@ -287,6 +296,14 @@ def init_db(force=False, report=False):
             t0 = time.monotonic()
             cur.execute(stmt)
             timings.append({"table": name, "ms": round((time.monotonic() - t0) * 1000)})
+        for stmt in MIGRATIONS:
+            try:
+                cur.execute(stmt)
+                timings.append({"migration": stmt[:60], "ms": 0})
+            except Exception as e:
+                # 1060 = Duplicate column -> migration déjà appliquée
+                if getattr(e, "args", [None])[0] != 1060:
+                    raise
     conn.commit()
     _initialized = True
     return timings if report else None
