@@ -91,7 +91,7 @@
         <td class="stop-type">{{ 'Prise en charge :' if stop.stop_type == 'prise_en_charge' else 'Dépose :' }}</td>
         <td class="date">{{ stop.date_label }}</td>
         <td class="heure">{{ stop.time }}</td>
-        <td>{{ stop.address }}<br>{{ stop.city }}</td>
+        <td>{% if stop.city %}<strong>{{ stop.city }}</strong><br>{% endif %}{{ stop.address }}</td>
       </tr>
       {% endfor %}
     </tbody>
