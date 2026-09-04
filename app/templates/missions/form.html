@@ -73,8 +73,8 @@
             <th style="width:15%;">Type</th>
             <th style="width:13%;">Date</th>
             <th style="width:10%;">Heure</th>
-            <th style="width:26%;">Adresse</th>
             <th style="width:18%;">Ville</th>
+            <th style="width:26%;">Adresse</th>
             <th style="width:10%;">Voyageurs</th>
             <th></th>
           </tr>
@@ -90,8 +90,8 @@
             </td>
             <td><input type="date" name="stop_date[]" value="{{ s.stop_date or mission.mission_date or '' }}"></td>
             <td><input type="text" name="stop_time[]" value="{{ s.stop_time or '' }}" placeholder="13:00"></td>
-            <td><input type="text" name="stop_address[]" value="{{ s.address or '' }}"></td>
             <td><input type="text" name="stop_city[]" value="{{ s.city or '' }}"></td>
+            <td><input type="text" name="stop_address[]" value="{{ s.address or '' }}"></td>
             <td><input type="number" min="1" name="stop_passenger_count[]" value="{{ s.passenger_count or 1 }}"></td>
             <td class="row-actions">
               <button type="button" class="row-move row-up" title="Monter">&#9650;</button>
@@ -135,11 +135,17 @@
             <td><input type="text" name="leg_start_time[]" value="{{ l.start_time or '' }}" placeholder="11:00"></td>
             <td><input type="text" name="leg_end_time[]" value="{{ l.end_time or '' }}" placeholder="11:00"></td>
             <td>
-              <select name="leg_vehicle_id[]">
+              <select name="leg_vehicle_id[]" class="leg-vehicle">
                 <option value="">— (pause) —</option>
                 <option value="relais" {{ 'selected' if l.is_relay }}>— (relais) —</option>
                 {% for v in vehicles %}
                 <option value="{{ v.id }}" {{ 'selected' if not l.is_relay and l.vehicle_id == v.id }}>{{ v.plate }}{{ ' — ' ~ v.name if v.name }}</option>
+                {% endfor %}
+              </select>
+              <select name="leg_relay_driver_id[]" class="relay-driver" style="margin-top:4px;" {{ '' if l.is_relay else 'hidden' }}>
+                <option value="">— chauffeur du relais —</option>
+                {% for d in drivers %}
+                <option value="{{ d.id }}" data-fn="{{ d.first_name }}" data-ln="{{ d.last_name }}" data-tel="{{ d.phone or '' }}" {{ 'selected' if l.relay_driver_id == d.id }}>{{ d.last_name }} {{ d.first_name }}</option>
                 {% endfor %}
               </select>
             </td>
@@ -173,8 +179,8 @@
       </td>
       <td><input type="date" name="stop_date[]" value="{{ mission.mission_date or '' }}"></td>
       <td><input type="text" name="stop_time[]" placeholder="13:00"></td>
-      <td><input type="text" name="stop_address[]"></td>
       <td><input type="text" name="stop_city[]"></td>
+      <td><input type="text" name="stop_address[]"></td>
       <td><input type="number" min="1" name="stop_passenger_count[]" value="1"></td>
       <td class="row-actions">
               <button type="button" class="row-move row-up" title="Monter">&#9650;</button>
@@ -189,11 +195,17 @@
       <td><input type="text" name="leg_start_time[]" placeholder="11:00"></td>
       <td><input type="text" name="leg_end_time[]" placeholder="11:00"></td>
       <td>
-        <select name="leg_vehicle_id[]">
+        <select name="leg_vehicle_id[]" class="leg-vehicle">
           <option value="">— (pause) —</option>
           <option value="relais">— (relais) —</option>
           {% for v in vehicles %}
           <option value="{{ v.id }}">{{ v.plate }}{{ ' — ' ~ v.name if v.name }}</option>
+          {% endfor %}
+        </select>
+        <select name="leg_relay_driver_id[]" class="relay-driver" style="margin-top:4px;" hidden>
+          <option value="">— chauffeur du relais —</option>
+          {% for d in drivers %}
+          <option value="{{ d.id }}" data-fn="{{ d.first_name }}" data-ln="{{ d.last_name }}" data-tel="{{ d.phone or '' }}">{{ d.last_name }} {{ d.first_name }}</option>
           {% endfor %}
         </select>
       </td>

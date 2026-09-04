@@ -32,6 +32,7 @@ def _parse_legs(form):
     ends = form.getlist("leg_end_time[]")
     vehicle_ids = form.getlist("leg_vehicle_id[]")
     labels = form.getlist("leg_label[]")
+    relay_drivers = form.getlist("leg_relay_driver_id[]")
     n = max(len(starts), len(ends), len(vehicle_ids), len(labels))
     legs = []
     for i in range(n):
@@ -39,6 +40,7 @@ def _parse_legs(form):
         if not s and not e and not l:
             continue
         is_relay = v == "relais"
+        rd = _at(relay_drivers, i)
         legs.append({
             "start_time": s,
             "end_time": e,
@@ -46,6 +48,7 @@ def _parse_legs(form):
             "label": l,
             "is_checkpoint": bool(s) and s == e and not is_relay,
             "is_relay": is_relay,
+            "relay_driver_id": int(rd) if (is_relay and rd and rd.isdigit()) else None,
         })
     return legs
 

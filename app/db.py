@@ -107,6 +107,7 @@ SCHEMA_STATEMENTS = [
         label VARCHAR(255) NOT NULL,
         is_checkpoint TINYINT(1) NOT NULL DEFAULT 0,
         is_relay TINYINT(1) NOT NULL DEFAULT 0,
+        relay_driver_id INT NULL,
         KEY idx_legs_mission (mission_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
@@ -162,6 +163,7 @@ SCHEMA_STATEMENTS = [
 # est jouée en ignorant l'erreur « colonne déjà présente » (MySQL 1060).
 MIGRATIONS = [
     "ALTER TABLE mission_legs ADD COLUMN is_relay TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE mission_legs ADD COLUMN relay_driver_id INT NULL",
 ]
 
 
