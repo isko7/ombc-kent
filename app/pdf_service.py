@@ -32,7 +32,7 @@ from app.config import (
     COMPANY, OM_LEGAL_REF, BC_LEGAL_REF, BASE_DIR,
     PDF_ENGINE, WKHTMLTOPDF_BIN, PDF_RENDER_URL, PDF_RENDER_SECRET,
 )
-from app.utils import fmt_time, fmt_date_short, fmt_date_long, day_label, shuttle_number
+from app.utils import fmt_time, fmt_date_short, fmt_date_long, day_label, shuttle_number, is_depot
 
 LOGO_PATH = BASE_DIR / "app" / "static" / "img" / "logo.png"
 _logo_b64_cache = None
@@ -184,7 +184,7 @@ def _format_leg_label(label):
         return ("single", label)
 
     def side_html(side, stacked):
-        if side.strip().lower() == "dépôt kent":
+        if is_depot(side):
             return f"<strong>{side.strip()}</strong>"
         if ", " in side:
             city, rest = side.split(", ", 1)

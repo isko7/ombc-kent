@@ -21,6 +21,7 @@ import urllib.request
 from datetime import datetime
 
 from app.config import COMPANY, TOMTOM_API_KEY
+from app.utils import is_depot
 
 BAN_URL = "https://api-adresse.data.gouv.fr/search/"
 TOMTOM_ROUTE_URL = "https://api.tomtom.com/routing/1/calculateRoute/{coords}/json"
@@ -54,7 +55,7 @@ def normalize_place(text):
       sans ce ré-ordonnancement elle se trompe de commune.
     """
     place = (text or "").strip()
-    if place.lower() == "dépôt kent":
+    if is_depot(place):
         return f"{COMPANY['address']}, {COMPANY['postal_code']} {COMPANY['city']}"
     if ", " in place:
         city, address = place.split(", ", 1)
