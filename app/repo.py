@@ -289,11 +289,11 @@ def create_mission(data):
     with get_db() as db:
         reference = _next_reference(db, data["mission_date"])
         cur = db.execute(
-            """INSERT INTO missions (reference, mission_name, billing_ref, shuttle_label, driver_id,
+            """INSERT INTO missions (reference, mission_name, shuttle_label, driver_id,
                mission_date, motif, remarks, client_id, emission_date, price, status,
                om_template_id, bc_template_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (reference, data.get("mission_name") or None, data.get("billing_ref") or None,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (reference, data.get("mission_name") or None,
              data.get("shuttle_label") or None, data["driver_id"], data["mission_date"],
              data.get("motif") or "Transport Occasionnel",
              data.get("remarks"), data.get("client_id") or None, data.get("emission_date"),
@@ -312,7 +312,6 @@ def _copy_base_fields(src):
         "driver_id": src["driver_id"],
         "mission_date": src["mission_date"],
         "mission_name": src.get("mission_name"),
-        "billing_ref": src.get("billing_ref"),
         "shuttle_label": src.get("shuttle_label"),
         "motif": src["motif"],
         "remarks": src["remarks"],
@@ -387,12 +386,12 @@ def create_return_mission(mission_id):
 def update_mission(mission_id, data):
     with get_db() as db:
         db.execute(
-            """UPDATE missions SET driver_id=?, mission_date=?, mission_name=?, billing_ref=?,
+            """UPDATE missions SET driver_id=?, mission_date=?, mission_name=?,
                shuttle_label=?, motif=?, remarks=?,
                client_id=?, emission_date=?, price=?, status=?, om_template_id=?, bc_template_id=?,
                updated_at=? WHERE id=?""",
             (data["driver_id"], data["mission_date"], data.get("mission_name") or None,
-             data.get("billing_ref") or None, data.get("shuttle_label") or None,
+             data.get("shuttle_label") or None,
              data.get("motif") or "Transport Occasionnel",
              data.get("remarks"), data.get("client_id") or None, data.get("emission_date"),
              data.get("price"), data.get("status") or "brouillon",

@@ -94,7 +94,6 @@ def _mission_form_to_data(form):
         "driver_id": int(form["driver_id"]) if form.get("driver_id") else None,
         "mission_date": form.get("mission_date") or None,
         "mission_name": form.get("mission_name", "").strip() or None,
-        "billing_ref": form.get("billing_ref", "").strip() or None,
         "shuttle_label": form.get("shuttle_label", "").strip() or None,
         "motif": form.get("motif", "").strip() or "Transport Occasionnel",
         "remarks": form.get("remarks", "").strip() or None,
@@ -167,7 +166,7 @@ def new_mission():
         "status": "brouillon", "motif": "Transport Occasionnel",
         "driver_id": None, "client_id": None, "om_template_id": None, "bc_template_id": None,
         "mission_date": "", "mission_name": "", "emission_date": date.today().isoformat(),
-        "billing_ref": "", "shuttle_label": "", "price": "", "remarks": "",
+        "shuttle_label": "", "price": "", "remarks": "",
         "legs": [], "stops": [],
     }))
 
@@ -176,10 +175,10 @@ def _billing_summary(mission):
     """Récapitulatif à copier-coller pour la facturation (affiché sur la
     fiche mission, jamais dans le PDF) :
 
-        Navette - <réf. facturation> - <navette> - Aller - 24/08/2026 03h30
+        NAVETTE X - Aller - 24/08/2026 03h30
 
-        Illiers-Combray 2 pax
-        Brou 2 pax
+        Prise en charge : Illiers-Combray, 1 rue A - 2 pax
+        Dépose : Fleury-les-Aubrais, PK Simplon - 6 pax
 
     Le sens est déduit des arrêts : une dépose unique = aller (on ramasse
     puis on dépose tout le monde au même endroit), une prise en charge
@@ -198,8 +197,6 @@ def _billing_summary(mission):
 
     start = legs[0]["start_time"] if legs else (stops[0]["stop_time"] if stops else "")
     header = " - ".join([
-        "Navette",
-        mission.get("billing_ref") or "XXX",
         mission.get("shuttle_label") or "NAVETTE X",
         direction,
         f"{fmt_date_long(mission['mission_date'])} {fmt_time(start)}".strip(),
@@ -207,10 +204,12 @@ def _billing_summary(mission):
 
     lines = []
     for s in stops:
-        place = (s.get("city") or s.get("address") or "").strip()
+        place = ", ".join(p for p in [(s.get("city") or "").strip(),
+                                      (s.get("address") or "").strip()] if p)
         if not place:
             continue
-        lines.append(f"{place} {s.get('passenger_count') or 1} pax")
+        label = "Prise en charge" if s["stop_type"] == "prise_en_charge" else "Dépose"
+        lines.append(f"{label} : {place} - {s.get('passenger_count') or 1} pax")
     return header + "\n\n" + "\n".join(lines) if lines else header
 
 
