@@ -104,6 +104,65 @@ function syncRelayRemarks(tr, text, prev) {
   remarks.value = lines.join("\n").replace(/\n{3,}/g, "\n\n").replace(/^\n+|\n+$/g, "");
 }
 
+// ------------------------------------------------ création de client
+// Crée un client sans quitter le formulaire de mission, puis l'ajoute au
+// menu déroulant et le sélectionne.
+function initNewClient() {
+  const box = document.getElementById("new-client-box");
+  const toggle = document.getElementById("new-client-toggle");
+  const select = document.getElementById("client-select");
+  if (!box || !toggle || !select) return;
+
+  const msg = document.getElementById("nc-msg");
+  const fields = {
+    name: document.getElementById("nc-name"),
+    address: document.getElementById("nc-address"),
+    postal_code: document.getElementById("nc-postal-code"),
+    city: document.getElementById("nc-city"),
+    phone: document.getElementById("nc-phone"),
+  };
+
+  const close = () => {
+    box.hidden = true;
+    msg.textContent = "";
+    Object.values(fields).forEach((f) => { f.value = ""; });
+  };
+
+  toggle.addEventListener("click", (e) => {
+    e.preventDefault();
+    box.hidden = !box.hidden;
+    if (!box.hidden) fields.name.focus();
+  });
+  document.getElementById("nc-cancel").addEventListener("click", close);
+
+  document.getElementById("nc-save").addEventListener("click", async () => {
+    if (!fields.name.value.trim()) {
+      msg.textContent = "Le nom du client est obligatoire.";
+      fields.name.focus();
+      return;
+    }
+    const body = new FormData();
+    Object.entries(fields).forEach(([k, f]) => body.append(k, f.value.trim()));
+    msg.textContent = "Création…";
+    try {
+      const resp = await fetch(box.dataset.url, { method: "POST", body });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        msg.textContent = data.error || "Échec de la création.";
+        return;
+      }
+      const opt = document.createElement("option");
+      opt.value = data.id;
+      opt.textContent = data.name;
+      select.appendChild(opt);
+      select.value = data.id;
+      close();
+    } catch (e) {
+      msg.textContent = "Échec de la création : " + e.message;
+    }
+  });
+}
+
 // ---------------------------------------------------- génération legs
 function generateLegsFromStops() {
   const stopRows = Array.from(document.querySelectorAll("#stops-body tr"));
@@ -163,6 +222,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const applyBtn = document.getElementById("apply-vehicle-all");
   if (applyBtn) applyBtn.addEventListener("click", applyVehicleToAllLegs);
+
+  initNewClient();
 
   // Init : afficher les sélecteurs de relais déjà actifs et mémoriser
   // leur texte pour la synchro des remarques.
