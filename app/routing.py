@@ -25,7 +25,10 @@ from app.utils import is_depot
 
 BAN_URL = "https://api-adresse.data.gouv.fr/search/"
 TOMTOM_ROUTE_URL = "https://api.tomtom.com/routing/1/calculateRoute/{coords}/json"
-TOMTOM_SEARCH_URL = "https://api.tomtom.com/search/2/geocode/{query}.json"
+# Recherche « fuzzy » (produit Search API) plutôt que /geocode (produit
+# Geocoding API) : elle trouve aussi les lieux non postaux — aéroports,
+# gares — qui sont précisément le cas d'usage de ce repli.
+TOMTOM_SEARCH_URL = "https://api.tomtom.com/search/2/search/{query}.json"
 TIMEOUT_SECONDS = 12
 
 
