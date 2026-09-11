@@ -31,9 +31,9 @@
           <input type="text" name="motif" value="{{ mission.motif or 'Transport Occasionnel' }}">
         </div>
         <div class="field">
-          <label>Navette</label>
-          <input type="text" name="shuttle_label" value="{{ mission.shuttle_label or '' }}" placeholder="ex. NAVETTE 3">
-          <div class="hint">En-tête du récap de facturation sur la fiche mission.</div>
+          <label>Numéro de navette</label>
+          <input type="text" name="shuttle_label" value="{{ mission.shuttle_label or '' }}" placeholder="ex. 3">
+          <div class="hint">Facultatif — remplace le « X » de « NAVETTE X » dans le récap de facturation.</div>
         </div>
         <div class="field">
           <label>Statut</label>
