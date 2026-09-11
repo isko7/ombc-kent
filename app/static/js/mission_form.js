@@ -131,13 +131,15 @@ function generateLegsFromStops() {
     fillLegRow(legsBody.lastElementChild, start, end, vehicleId, lbl);
   };
 
-  add(first.time, first.time, veh, `Prise de service - ${DEPOT}`);
+  // Prise / fin de service : heures laissées vides, c'est le chauffeur qui
+  // les renseigne (elles ne se déduisent pas des arrêts).
+  add("", "", veh, `Prise de service - ${DEPOT}`);
   add("", first.time, veh, `${DEPOT}${ARROW}${label(first)}`);
   for (let i = 0; i < stops.length - 1; i++) {
     add(stops[i].time, stops[i + 1].time, veh, `${label(stops[i])}${ARROW}${label(stops[i + 1])}`);
   }
   add(last.time, "", veh, `${label(last)}${ARROW}${DEPOT}`);
-  add(last.time, last.time, veh, `Fin de service - ${DEPOT}`);
+  add("", "", veh, `Fin de service - ${DEPOT}`);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

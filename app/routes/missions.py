@@ -46,12 +46,15 @@ def _parse_legs(form):
             continue
         is_relay = v == "relais"
         rd = _at(relay_drivers, i)
+        # Point de contrôle : début = fin, ou une prise/fin de service (dont
+        # les heures sont laissées vides, remplies à la main par le chauffeur).
+        is_service = l.lower().startswith(("prise de service", "fin de service"))
         legs.append({
             "start_time": s,
             "end_time": e,
             "vehicle_id": int(v) if (v and v.isdigit()) else None,
             "label": l,
-            "is_checkpoint": bool(s) and s == e and not is_relay,
+            "is_checkpoint": ((bool(s) and s == e) or is_service) and not is_relay,
             "is_relay": is_relay,
             "relay_driver_id": int(rd) if (is_relay and rd and rd.isdigit()) else None,
         })
