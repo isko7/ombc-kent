@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from flask import (
@@ -130,9 +130,23 @@ def list_missions_view():
     date_from = request.args.get("date_from") or None
     date_to = request.args.get("date_to") or None
     status = request.args.get("status") or None
-    missions = repo.list_missions(driver_id=driver_id, date_from=date_from, date_to=date_to, status=status)
+    tab = "past" if request.args.get("tab") == "past" else "current"
+
+    # L'onglet pose une borne de date automatique, combinée (ET) avec les
+    # bornes saisies dans les filtres : c'est la plus restrictive qui gagne.
+    today = date.today().isoformat()
+    if tab == "past":
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        eff_from, eff_to = date_from, min(date_to, yesterday) if date_to else yesterday
+    else:
+        eff_from, eff_to = (max(date_from, today) if date_from else today), date_to
+
+    missions = repo.list_missions(
+        driver_id=driver_id, date_from=eff_from, date_to=eff_to, status=status,
+        ascending=(tab == "current"),  # à venir : le plus proche d'abord
+    )
     return render_template(
-        "missions/list.html", missions=missions, drivers=repo.list_drivers(),
+        "missions/list.html", missions=missions, drivers=repo.list_drivers(), tab=tab,
         filters={"driver_id": driver_id, "date_from": date_from, "date_to": date_to, "status": status},
     )
 

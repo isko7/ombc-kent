@@ -9,7 +9,15 @@
     <a href="{{ url_for('missions.new_mission') }}" class="btn btn--primary">+ Nouvel ordre de mission</a>
   </div>
 
+  <div class="tabs">
+    <a href="{{ url_for('missions.list_missions_view', tab='current', driver_id=filters.driver_id, status=filters.status) }}"
+       class="tab {{ 'tab--active' if tab == 'current' }}">À venir</a>
+    <a href="{{ url_for('missions.list_missions_view', tab='past', driver_id=filters.driver_id, status=filters.status) }}"
+       class="tab {{ 'tab--active' if tab == 'past' }}">Missions passées</a>
+  </div>
+
   <form method="get" class="card" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;">
+    <input type="hidden" name="tab" value="{{ tab }}">
     <div class="field" style="margin:0; min-width:180px;">
       <label>Chauffeur</label>
       <select name="driver_id">
@@ -37,7 +45,7 @@
       </select>
     </div>
     <button type="submit" class="btn btn--secondary">Filtrer</button>
-    <a href="{{ url_for('missions.list_missions_view') }}" class="btn btn--ghost">Réinitialiser</a>
+    <a href="{{ url_for('missions.list_missions_view', tab=tab) }}" class="btn btn--ghost">Réinitialiser</a>
   </form>
 
   {# Formulaire "vide" : les cases à cocher du tableau lui sont rattachées
@@ -88,8 +96,15 @@
     </table>
     {% else %}
     <div class="empty-state">
-      <div>Aucun ordre de mission ne correspond aux filtres.</div>
+      <div>
+        {% if tab == 'past' %}Aucune mission passée ne correspond aux filtres.
+        {% else %}Aucune mission à venir ne correspond aux filtres.{% endif %}
+      </div>
+      {% if tab == 'past' %}
+      <a href="{{ url_for('missions.list_missions_view') }}" class="btn btn--secondary">Voir les missions à venir</a>
+      {% else %}
       <a href="{{ url_for('missions.new_mission') }}" class="btn btn--primary">Créer un ordre de mission</a>
+      {% endif %}
     </div>
     {% endif %}
   </div>
