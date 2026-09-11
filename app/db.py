@@ -81,6 +81,8 @@ SCHEMA_STATEMENTS = [
         id INT AUTO_INCREMENT PRIMARY KEY,
         reference VARCHAR(64) UNIQUE,
         mission_name VARCHAR(255),
+        billing_ref VARCHAR(120),
+        shuttle_label VARCHAR(120),
         driver_id INT NOT NULL,
         mission_date VARCHAR(10) NOT NULL,
         motif VARCHAR(255) NOT NULL DEFAULT 'Transport Occasionnel',
@@ -170,6 +172,8 @@ MIGRATIONS = [
     "ALTER TABLE missions ADD COLUMN mission_name VARCHAR(255)",
     "ALTER TABLE missions ADD COLUMN sent_randstad_at DATETIME NULL",
     "ALTER TABLE missions ADD COLUMN sent_driver_at DATETIME NULL",
+    "ALTER TABLE missions ADD COLUMN billing_ref VARCHAR(120)",
+    "ALTER TABLE missions ADD COLUMN shuttle_label VARCHAR(120)",
 ]
 
 
