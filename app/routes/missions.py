@@ -13,7 +13,7 @@ from app.pdf_service import (
     POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC,
 )
 from app.email_service import send_mission_email, send_bulk_email, EmailError
-from app.utils import fmt_date_full, fmt_date_short, fmt_time
+from app.utils import fmt_date_full, fmt_date_long, fmt_date_short, fmt_time
 
 bp = Blueprint("missions", __name__, url_prefix="/missions")
 
@@ -94,6 +94,8 @@ def _mission_form_to_data(form):
         "driver_id": int(form["driver_id"]) if form.get("driver_id") else None,
         "mission_date": form.get("mission_date") or None,
         "mission_name": form.get("mission_name", "").strip() or None,
+        "billing_ref": form.get("billing_ref", "").strip() or None,
+        "shuttle_label": form.get("shuttle_label", "").strip() or None,
         "motif": form.get("motif", "").strip() or "Transport Occasionnel",
         "remarks": form.get("remarks", "").strip() or None,
         "client_id": int(form["client_id"]) if form.get("client_id") else None,
@@ -165,9 +167,51 @@ def new_mission():
         "status": "brouillon", "motif": "Transport Occasionnel",
         "driver_id": None, "client_id": None, "om_template_id": None, "bc_template_id": None,
         "mission_date": "", "mission_name": "", "emission_date": date.today().isoformat(),
-        "price": "", "remarks": "",
+        "billing_ref": "", "shuttle_label": "", "price": "", "remarks": "",
         "legs": [], "stops": [],
     }))
+
+
+def _billing_summary(mission):
+    """Récapitulatif à copier-coller pour la facturation (affiché sur la
+    fiche mission, jamais dans le PDF) :
+
+        Navette - <réf. facturation> - <navette> - Aller - 24/08/2026 03h30
+
+        Illiers-Combray 2 pax
+        Brou 2 pax
+
+    Le sens est déduit des arrêts : une dépose unique = aller (on ramasse
+    puis on dépose tout le monde au même endroit), une prise en charge
+    unique = retour."""
+    stops = mission.get("stops") or []
+    legs = mission.get("legs") or []
+
+    n_pickup = sum(1 for s in stops if s["stop_type"] == "prise_en_charge")
+    n_dropoff = len(stops) - n_pickup
+    if n_pickup == 1 and n_dropoff > 1:
+        direction = "Retour"
+    elif n_dropoff == 1 and n_pickup > 1:
+        direction = "Aller"
+    else:
+        direction = "Aller" if n_pickup >= n_dropoff else "Retour"
+
+    start = legs[0]["start_time"] if legs else (stops[0]["stop_time"] if stops else "")
+    header = " - ".join([
+        "Navette",
+        mission.get("billing_ref") or "XXX",
+        mission.get("shuttle_label") or "NAVETTE X",
+        direction,
+        f"{fmt_date_long(mission['mission_date'])} {fmt_time(start)}".strip(),
+    ])
+
+    lines = []
+    for s in stops:
+        place = (s.get("city") or s.get("address") or "").strip()
+        if not place:
+            continue
+        lines.append(f"{place} {s.get('passenger_count') or 1} pax")
+    return header + "\n\n" + "\n".join(lines) if lines else header
 
 
 @bp.route("/<int:mission_id>")
@@ -177,7 +221,8 @@ def detail_mission(mission_id):
         abort(404)
     emails = repo.list_email_log(mission_id)
     return render_template("missions/detail.html", mission=mission, emails=emails,
-                            positions=ATTACHMENT_POSITIONS)
+                            positions=ATTACHMENT_POSITIONS,
+                            billing_summary=_billing_summary(mission))
 
 
 @bp.route("/<int:mission_id>/modifier", methods=["GET", "POST"])
