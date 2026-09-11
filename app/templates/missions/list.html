@@ -4,7 +4,9 @@
   <div class="page-head">
     <div>
       <h1>Ordres de mission</h1>
-      <div class="sub">{{ missions|length }} résultat{{ 's' if missions|length != 1 }}</div>
+      <div class="sub">
+        {{ total }} résultat{{ 's' if total != 1 }}{% if total_pages > 1 %} — page {{ page }} / {{ total_pages }}{% endif %}
+      </div>
     </div>
     <a href="{{ url_for('missions.new_mission') }}" class="btn btn--primary">+ Nouvel ordre de mission</a>
   </div>
@@ -103,6 +105,23 @@
         {% endfor %}
       </tbody>
     </table>
+    {% if total_pages > 1 %}
+    <div class="pagination">
+      {% if page > 1 %}
+      <a class="btn btn--secondary btn--sm"
+         href="{{ url_for('missions.list_missions_view', tab=tab, page=page-1, **filters) }}">← Précédent</a>
+      {% else %}
+      <span class="btn btn--secondary btn--sm is-disabled">← Précédent</span>
+      {% endif %}
+      <span class="pagination__info">Page {{ page }} sur {{ total_pages }}</span>
+      {% if page < total_pages %}
+      <a class="btn btn--secondary btn--sm"
+         href="{{ url_for('missions.list_missions_view', tab=tab, page=page+1, **filters) }}">Suivant →</a>
+      {% else %}
+      <span class="btn btn--secondary btn--sm is-disabled">Suivant →</span>
+      {% endif %}
+    </div>
+    {% endif %}
     {% else %}
     <div class="empty-state">
       <div>
