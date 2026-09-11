@@ -1,5 +1,10 @@
 """Petits utilitaires de formatage (dates/heures en français)."""
+import unicodedata
 from datetime import date, datetime
+
+# Libellé du dépôt utilisé dans les trajets. Ce n'est pas une adresse :
+# routing.py lui substitue celle de l'entreprise (COMPANY_* du .env).
+DEPOT_LABEL = "Dépôt KENT"
 
 WEEKDAYS_FR = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
@@ -44,6 +49,19 @@ def fmt_date_full(value):
     dans une phrase — utilisé pour l'objet/corps des emails)."""
     d = parse_iso_date(value)
     return f"{WEEKDAYS_FR[d.weekday()].lower()} {d.strftime('%d/%m/%Y')}" if d else ""
+
+
+def _fold(text):
+    """Minuscules sans accents, pour comparer « Dépôt » et « Depot »."""
+    decomposed = unicodedata.normalize("NFD", (text or "").strip().lower())
+    return "".join(c for c in decomposed if unicodedata.category(c) != "Mn")
+
+
+def is_depot(text):
+    """Vrai si le libellé désigne le dépôt, quelle que soit la casse ou la
+    présence des accents (la génération automatique écrit « Dépôt KENT »,
+    mais une saisie manuelle peut donner « Depot KENT »)."""
+    return _fold(text) == _fold(DEPOT_LABEL)
 
 
 def shuttle_number(value):
