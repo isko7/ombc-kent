@@ -5,7 +5,7 @@
     <h1>{{ 'Nouvel ordre de mission' if is_new else 'Modifier ' ~ (mission.reference or '') }}</h1>
   </div>
 
-  <form method="post">
+  <form method="post" id="mission-form" data-estimate-url="{{ url_for('missions.estimate_leg_duration') }}">
     <div class="card">
       <h2>Informations générales</h2>
       <div class="form-grid">
@@ -179,7 +179,13 @@
                 {% endfor %}
               </select>
             </td>
-            <td><input type="text" name="leg_label[]" value="{{ l.label or '' }}"></td>
+            <td>
+              <input type="text" name="leg_label[]" value="{{ l.label or '' }}">
+              <div class="leg-estimate">
+                <button type="button" class="btn btn--ghost btn--sm estimate-leg" title="Estimer la durée avec le trafic">⏱ Estimer</button>
+                <span class="estimate-result"></span>
+              </div>
+            </td>
             <td class="row-actions">
               <button type="button" class="row-move row-up" title="Monter">&#9650;</button>
               <button type="button" class="row-move row-down" title="Descendre">&#9660;</button>
@@ -239,7 +245,13 @@
           {% endfor %}
         </select>
       </td>
-      <td><input type="text" name="leg_label[]"></td>
+      <td>
+        <input type="text" name="leg_label[]">
+        <div class="leg-estimate">
+          <button type="button" class="btn btn--ghost btn--sm estimate-leg" title="Estimer la durée avec le trafic">⏱ Estimer</button>
+          <span class="estimate-result"></span>
+        </div>
+      </td>
       <td class="row-actions">
               <button type="button" class="row-move row-up" title="Monter">&#9650;</button>
               <button type="button" class="row-move row-down" title="Descendre">&#9660;</button>

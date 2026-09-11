@@ -169,6 +169,22 @@ table.edit-rows select.relay-driver { width: 100%; background: #eef3fa; }
 .attachment-item .name { font-weight: 600; font-size: 13.5px; }
 .attachment-item .pos { font-size: 12px; color: var(--muted); }
 
+/* Autocomplétion d'adresse (arrêts) : la liste est ancrée sur la cellule,
+   d'où le position:relative sur les <td> du tableau de saisie. */
+table.edit-rows td { position: relative; }
+.addr-suggestions {
+  position: absolute; z-index: 20; left: 6px; right: 6px; top: 100%;
+  background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .12); max-height: 240px; overflow-y: auto;
+}
+.addr-suggestion { padding: 7px 10px; font-size: 13px; cursor: pointer; }
+.addr-suggestion:hover { background: #f2f1ee; }
+
+/* Bouton « Estimer » + résultat, sous le libellé du trajet */
+.leg-estimate { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.estimate-result { font-size: 12px; color: var(--muted); }
+.estimate-result--error { color: var(--err-text); }
+
 .pagination {
   display: flex; align-items: center; justify-content: center; gap: 12px;
   padding: 14px 16px; border-top: 1px solid var(--line);
