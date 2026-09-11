@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from flask import (
-    Blueprint, render_template, request, redirect, url_for, flash, Response, abort
+    Blueprint, render_template, request, redirect, url_for, flash, Response, abort, jsonify
 )
 from werkzeug.utils import secure_filename
 
@@ -13,6 +13,7 @@ from app.pdf_service import (
     POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC,
 )
 from app.email_service import send_mission_email, send_bulk_email, EmailError
+from app.routing import estimate_route, format_duration, add_minutes, RoutingError
 from app.utils import fmt_date_full, fmt_date_long, fmt_date_short, fmt_time, shuttle_number
 
 bp = Blueprint("missions", __name__, url_prefix="/missions")
@@ -165,6 +166,34 @@ def list_missions_view():
         filters={"driver_id": driver_id, "date_from": date_from, "date_to": date_to,
                  "status": status, "name": name},
     )
+
+
+@bp.route("/estimer-duree", methods=["POST"])
+def estimate_leg_duration():
+    """Estimation de la durée d'une ligne de trajet (bouton « Estimer »
+    du formulaire). Appelé en fetch, répond en JSON. La clé TomTom reste
+    côté serveur."""
+    origin = request.form.get("from", "").strip()
+    destination = request.form.get("to", "").strip()
+    if not origin or not destination:
+        return jsonify({"ok": False, "error": "Le libellé doit être de la forme « départ → arrivée »."}), 400
+    try:
+        result = estimate_route(
+            origin, destination,
+            mission_date=request.form.get("mission_date") or None,
+            start_time=request.form.get("start_time") or None,
+        )
+    except RoutingError as e:
+        return jsonify({"ok": False, "error": str(e)}), 502
+
+    return jsonify({
+        "ok": True,
+        "duration": format_duration(result["duration_s"]),
+        "km": round(result["distance_m"] / 1000),
+        "traffic_min": round(result["traffic_delay_s"] / 60),
+        "with_traffic_at": result["departure"],
+        "end_time": add_minutes(request.form.get("start_time"), result["duration_s"]),
+    })
 
 
 @bp.route("/nouveau", methods=["GET", "POST"])

@@ -149,3 +149,10 @@ RANDSTAD_EMAIL = env("RANDSTAD_EMAIL", "")
 # Client épinglé en tête du menu déroulant "Client" du formulaire de
 # mission (le reste de la liste est alphabétique).
 PINNED_CLIENT_NAME = env("PINNED_CLIENT_NAME", "Simplon Voyages")
+
+# --- Estimation des durées de trajet ----------------------------------
+# Clé TomTom (developer.tomtom.com) pour le calcul d'itinéraire avec
+# trafic à l'heure de départ. Sans clé, le bouton « Estimer » renvoie un
+# message explicite et le reste de l'application fonctionne normalement.
+# Le géocodage passe lui par la Base Adresse Nationale (gratuite, sans clé).
+TOMTOM_API_KEY = env("TOMTOM_API_KEY", "")

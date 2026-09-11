@@ -104,6 +104,97 @@ function syncRelayRemarks(tr, text, prev) {
   remarks.value = lines.join("\n").replace(/\n{3,}/g, "\n\n").replace(/^\n+|\n+$/g, "");
 }
 
+// ------------------------------------------- autocomplétion d'adresse
+// Base Adresse Nationale : gratuite, sans clé, et surtout elle renvoie la
+// voie et la commune séparément — ce qui permet de remplir « Adresse » et
+// « Ville » d'un seul clic.
+const BAN_URL = "https://api-adresse.data.gouv.fr/search/";
+
+function closeSuggestions() {
+  document.querySelectorAll(".addr-suggestions").forEach((el) => el.remove());
+}
+
+async function showAddressSuggestions(input) {
+  const q = input.value.trim();
+  closeSuggestions();
+  if (q.length < 3) return;
+
+  let features;
+  try {
+    const resp = await fetch(BAN_URL + "?" + new URLSearchParams({ q, limit: "5" }));
+    features = (await resp.json()).features || [];
+  } catch (e) {
+    return; // hors ligne / API indisponible : on laisse la saisie libre
+  }
+  if (!features.length || document.activeElement !== input) return;
+
+  const box = document.createElement("div");
+  box.className = "addr-suggestions";
+  features.forEach((f) => {
+    const item = document.createElement("div");
+    item.className = "addr-suggestion";
+    item.textContent = f.properties.label;
+    // mousedown plutôt que click : se déclenche avant le blur de l'input.
+    item.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const tr = input.closest("tr");
+      input.value = f.properties.name || f.properties.label;
+      const cityInput = tr && tr.querySelector('[name="stop_city[]"]');
+      if (cityInput) cityInput.value = f.properties.city || "";
+      closeSuggestions();
+    });
+    box.appendChild(item);
+  });
+  input.parentNode.appendChild(box);
+}
+
+// ------------------------------------------------ estimation de durée
+async function estimateLeg(button) {
+  const form = document.getElementById("mission-form");
+  const tr = button.closest("tr");
+  const result = tr.querySelector(".estimate-result");
+  const label = tr.querySelector('[name="leg_label[]"]').value;
+  const parts = label.split(ARROW);
+  if (parts.length !== 2) {
+    result.textContent = "Libellé attendu : « départ → arrivée »";
+    result.className = "estimate-result estimate-result--error";
+    return;
+  }
+
+  const startInput = tr.querySelector('[name="leg_start_time[]"]');
+  const body = new FormData();
+  body.append("from", parts[0].trim());
+  body.append("to", parts[1].trim());
+  body.append("start_time", startInput.value.trim());
+  const missionDate = document.querySelector('[name="mission_date"]');
+  body.append("mission_date", missionDate ? missionDate.value : "");
+
+  result.className = "estimate-result";
+  result.textContent = "Calcul…";
+  button.disabled = true;
+  try {
+    const resp = await fetch(form.dataset.estimateUrl, { method: "POST", body });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      result.textContent = data.error || "Estimation indisponible.";
+      result.className = "estimate-result estimate-result--error";
+      return;
+    }
+    let text = `≈ ${data.duration} · ${data.km} km`;
+    if (data.traffic_min > 0) text += ` (dont ${data.traffic_min} min de trafic)`;
+    if (!data.with_traffic_at) text += " · trafic actuel";
+    // L'heure de fin n'est calculable que si l'heure de début est saisie.
+    const endInput = tr.querySelector('[name="leg_end_time[]"]');
+    if (data.end_time && endInput) endInput.value = data.end_time;
+    result.textContent = text;
+  } catch (e) {
+    result.textContent = "Estimation indisponible : " + e.message;
+    result.className = "estimate-result estimate-result--error";
+  } finally {
+    button.disabled = false;
+  }
+}
+
 // ------------------------------------------------ création de client
 // Crée un client sans quitter le formulaire de mission, puis l'ajoute au
 // menu déroulant et le sélectionne.
@@ -240,6 +331,21 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target.matches(".row-remove")) removeRow(e.target);
     else if (e.target.matches(".row-up")) moveRow(e.target, -1);
     else if (e.target.matches(".row-down")) moveRow(e.target, 1);
+    else if (e.target.matches(".estimate-leg")) estimateLeg(e.target);
+    else if (!e.target.closest(".addr-suggestions")) closeSuggestions();
+  });
+
+  // Autocomplétion : délégation, pour couvrir aussi les lignes ajoutées
+  // après le chargement de la page. `input` ne bulle pas sur `focusout`,
+  // d'où les deux écouteurs en phase de capture.
+  let addrTimer = null;
+  document.body.addEventListener("input", (e) => {
+    if (!e.target.matches('[name="stop_address[]"]')) return;
+    clearTimeout(addrTimer);
+    addrTimer = setTimeout(() => showAddressSuggestions(e.target), 250);
+  });
+  document.body.addEventListener("focusout", (e) => {
+    if (e.target.matches('[name="stop_address[]"]')) setTimeout(closeSuggestions, 150);
   });
 
   document.body.addEventListener("change", (e) => {
