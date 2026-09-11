@@ -46,6 +46,16 @@ def fmt_date_full(value):
     return f"{WEEKDAYS_FR[d.weekday()].lower()} {d.strftime('%d/%m/%Y')}" if d else ""
 
 
+def shuttle_number(value):
+    """Le champ « Numéro de navette » ne contient que le numéro ('3'), mais
+    on tolère une saisie du type 'Navette 3' pour ne pas afficher
+    « NAVETTE NAVETTE 3 ». Renvoie '' si rien n'est renseigné."""
+    number = (value or "").strip()
+    if number.lower().startswith("navette"):
+        number = number[len("navette"):].strip()
+    return number
+
+
 def register_jinja_filters(app):
     app.jinja_env.filters["fmt_time"] = fmt_time
     app.jinja_env.filters["fmt_date_short"] = fmt_date_short
