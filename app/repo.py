@@ -217,7 +217,7 @@ def _next_reference(db, mission_date_str):
     return f"{prefix}{max_n + 1:04d}"
 
 
-def list_missions(driver_id=None, date_from=None, date_to=None, status=None):
+def list_missions(driver_id=None, date_from=None, date_to=None, status=None, ascending=False):
     with get_db() as db:
         q = """SELECT m.*, d.last_name AS driver_last_name, d.first_name AS driver_first_name,
                       c.name AS client_name
@@ -238,7 +238,7 @@ def list_missions(driver_id=None, date_from=None, date_to=None, status=None):
         if status:
             q += " AND m.status = ?"
             params.append(status)
-        q += " ORDER BY m.mission_date DESC, m.id DESC"
+        q += " ORDER BY m.mission_date ASC, m.id ASC" if ascending else " ORDER BY m.mission_date DESC, m.id DESC"
         return rows_to_dicts(db.execute(q, params).fetchall())
 
 
