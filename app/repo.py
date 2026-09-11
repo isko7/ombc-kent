@@ -7,6 +7,7 @@ déjà des dict (voir app/db.py) ; `row_to_dict` / `rows_to_dicts` restent
 là pour découpler les templates du pilote.
 """
 from datetime import datetime, date
+from app.config import PINNED_CLIENT_NAME
 from app.db import get_db
 
 
@@ -105,8 +106,14 @@ def delete_vehicle(vehicle_id):
 
 
 # ---------------------------------------------------------------- clients
-def list_clients():
+def list_clients(pinned_first=False):
+    """pinned_first : remonte PINNED_CLIENT_NAME en tête (menu déroulant du
+    formulaire de mission) ; le reste reste alphabétique."""
     with get_db() as db:
+        if pinned_first and PINNED_CLIENT_NAME:
+            return rows_to_dicts(db.execute(
+                "SELECT * FROM clients ORDER BY (name = ?) DESC, name", (PINNED_CLIENT_NAME,)
+            ).fetchall())
         return rows_to_dicts(db.execute("SELECT * FROM clients ORDER BY name").fetchall())
 
 
@@ -217,7 +224,8 @@ def _next_reference(db, mission_date_str):
     return f"{prefix}{max_n + 1:04d}"
 
 
-def list_missions(driver_id=None, date_from=None, date_to=None, status=None, ascending=False):
+def list_missions(driver_id=None, date_from=None, date_to=None, status=None, name=None,
+                  ascending=False):
     with get_db() as db:
         q = """SELECT m.*, d.last_name AS driver_last_name, d.first_name AS driver_first_name,
                       c.name AS client_name
@@ -238,6 +246,11 @@ def list_missions(driver_id=None, date_from=None, date_to=None, status=None, asc
         if status:
             q += " AND m.status = ?"
             params.append(status)
+        if name:
+            # Le joker % est laissé à la main de l'utilisateur ; sans joker,
+            # on cherche « contient » (comportement attendu par défaut).
+            q += " AND m.mission_name LIKE ?"
+            params.append(name if "%" in name else f"%{name}%")
         q += " ORDER BY m.mission_date ASC, m.id ASC" if ascending else " ORDER BY m.mission_date DESC, m.id DESC"
         return rows_to_dicts(db.execute(q, params).fetchall())
 

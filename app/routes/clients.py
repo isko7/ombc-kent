@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 
 from app import repo
 
@@ -34,6 +34,18 @@ def new_client():
         flash(f"Client {data['name']} créé.", "success")
         return redirect(url_for("clients.list_clients_view"))
     return render_template("clients/form.html", client={}, is_new=True)
+
+
+@bp.route("/creation-rapide", methods=["POST"])
+def quick_create_client():
+    """Création d'un client depuis le formulaire de mission (appel fetch) :
+    répond en JSON pour que le JS ajoute l'option au menu déroulant sans
+    faire perdre la saisie en cours."""
+    data = _form_to_data(request.form)
+    if not data["name"]:
+        return jsonify({"ok": False, "error": "Le nom du client est obligatoire."}), 400
+    client_id = repo.create_client(data)
+    return jsonify({"ok": True, "id": client_id, "name": data["name"]})
 
 
 @bp.route("/<int:client_id>", methods=["GET", "POST"])

@@ -121,7 +121,7 @@ def _form_context(mission=None):
     return {
         "drivers": repo.list_drivers(include_inactive=False),
         "vehicles": repo.list_vehicles(include_inactive=False),
-        "clients": repo.list_clients(),
+        "clients": repo.list_clients(pinned_first=True),
         "om_templates": repo.list_templates("OM"),
         "bc_templates": repo.list_templates("BC"),
         "mission": mission,
@@ -134,6 +134,7 @@ def list_missions_view():
     date_from = request.args.get("date_from") or None
     date_to = request.args.get("date_to") or None
     status = request.args.get("status") or None
+    name = request.args.get("name", "").strip() or None
     tab = "past" if request.args.get("tab") == "past" else "current"
 
     # L'onglet pose une borne de date automatique, combinée (ET) avec les
@@ -146,12 +147,13 @@ def list_missions_view():
         eff_from, eff_to = (max(date_from, today) if date_from else today), date_to
 
     missions = repo.list_missions(
-        driver_id=driver_id, date_from=eff_from, date_to=eff_to, status=status,
+        driver_id=driver_id, date_from=eff_from, date_to=eff_to, status=status, name=name,
         ascending=(tab == "current"),  # à venir : le plus proche d'abord
     )
     return render_template(
         "missions/list.html", missions=missions, drivers=repo.list_drivers(), tab=tab,
-        filters={"driver_id": driver_id, "date_from": date_from, "date_to": date_to, "status": status},
+        filters={"driver_id": driver_id, "date_from": date_from, "date_to": date_to,
+                 "status": status, "name": name},
     )
 
 
@@ -358,18 +360,26 @@ def email_mission(mission_id):
         flash(f"OM + BC envoyés à {', '.join(to_list)}.", "success")
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
 
-    mission_date_label = fmt_date_full(mission["mission_date"])
-    default_subject = f"{COMPANY['name']} — Ordre de mission du {mission_date_label}"
-    default_body = (
-        f"Bonjour {driver['first_name']},\n\n"
-        f"Veuillez trouver ci-joint votre ordre de mission et le billet collectif "
-        f"pour le {mission_date_label}.\n\n"
-        f"Cordialement,\n{COMPANY['name']}"
-    )
+    default_subject, default_body = _driver_email_defaults(mission)
     return render_template(
         "missions/email.html", mission=mission, driver=driver,
         default_subject=default_subject, default_body=default_body,
     )
+
+
+def _driver_email_defaults(mission):
+    """Objet / corps de l'email envoyé au chauffeur d'une mission. Partagé
+    entre l'envoi unitaire (page de rédaction) et l'envoi groupé « chaque
+    mission à son chauffeur »."""
+    label = fmt_date_full(mission["mission_date"])
+    subject = f"{COMPANY['name']} — Ordre de mission du {label}"
+    body = (
+        f"Bonjour {mission['driver']['first_name']},\n\n"
+        f"Veuillez trouver ci-joint votre ordre de mission et le billet collectif "
+        f"pour le {label}.\n\n"
+        f"Cordialement,\n{COMPANY['name']}"
+    )
+    return subject, body
 
 
 def _bulk_email_defaults(missions):
@@ -447,3 +457,41 @@ def bulk_email():
         "missions/bulk_email.html", missions=missions, mission_ids=ids,
         default_to=RANDSTAD_EMAIL, default_subject=subject, default_body=body,
     )
+
+
+@bp.route("/envoi-chauffeurs", methods=["POST"])
+def bulk_email_drivers():
+    """Sélection multiple -> un email distinct par mission, adressé au
+    chauffeur de cette mission (contrairement à l'envoi Randstad qui
+    regroupe tout dans un seul email)."""
+    ids = request.form.getlist("mission_ids", type=int)
+    missions = [m for m in (repo.get_mission(i) for i in ids) if m]
+    if not missions:
+        flash("Sélectionnez au moins un ordre de mission.", "error")
+        return redirect(url_for("missions.list_missions_view"))
+
+    sent, skipped, failed = [], [], []
+    for m in missions:
+        driver = m["driver"]
+        to = (driver.get("email") or "").strip()
+        if not to:
+            skipped.append(f"{m['reference']} ({driver['last_name']} : pas d'email)")
+            continue
+        subject, body = _driver_email_defaults(m)
+        try:
+            pdf_bytes, filename = generate_mission_pdf(m["id"])
+            send_mission_email(m["id"], [to], [], subject, body, pdf_bytes, filename)
+        except (PdfGenerationError, EmailError) as e:
+            failed.append(f"{m['reference']} : {e}")
+            continue
+        repo.set_mission_status(m["id"], "envoyé")
+        repo.mark_sent_driver(m["id"])
+        sent.append(f"{m['reference']} → {to}")
+
+    if sent:
+        flash(f"{len(sent)} email(s) envoyé(s) : {', '.join(sent)}.", "success")
+    if skipped:
+        flash(f"Ignoré(s), chauffeur sans email : {', '.join(skipped)}.", "error")
+    if failed:
+        flash(f"Échec(s) : {'; '.join(failed)}.", "error")
+    return redirect(url_for("missions.list_missions_view"))

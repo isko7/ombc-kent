@@ -169,6 +169,11 @@ table.edit-rows select.relay-driver { width: 100%; background: #eef3fa; }
 .attachment-item .name { font-weight: 600; font-size: 13.5px; }
 .attachment-item .pos { font-size: 12px; color: var(--muted); }
 
+.new-client-box {
+  margin-top: 14px; padding: 14px; border: 1px dashed var(--line-strong);
+  border-radius: var(--radius); background: #fafaf8;
+}
+
 .billing-summary {
   margin: 0; padding: 12px 14px; background: #fafaf8; border: 1px solid var(--line);
   border-radius: var(--radius); font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;

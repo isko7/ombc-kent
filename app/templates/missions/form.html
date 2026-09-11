@@ -55,13 +55,15 @@
       <div class="form-grid">
         <div class="field">
           <label>Client</label>
-          <select name="client_id">
+          <select name="client_id" id="client-select">
             <option value="">— Aucun —</option>
             {% for c in clients %}
             <option value="{{ c.id }}" {{ 'selected' if mission.client_id == c.id }}>{{ c.name }}</option>
             {% endfor %}
           </select>
-          <div class="hint">Gérer les clients depuis le menu "Clients".</div>
+          <div class="hint">
+            <a href="#" id="new-client-toggle">+ Nouveau client</a> — ou gérez-les depuis le menu « Clients ».
+          </div>
         </div>
         <div class="field">
           <label>Date d'émission</label>
@@ -70,6 +72,25 @@
         <div class="field">
           <label>Prix du transport</label>
           <input type="text" name="price" value="{{ mission.price or '' }}" placeholder="ex. 480 €">
+        </div>
+      </div>
+
+      {# Création rapide d'un client sans quitter la saisie de la mission.
+         Ce ne sont pas des <form> imbriqués : les champs sont envoyés en
+         fetch vers /clients/creation-rapide, qui répond en JSON. #}
+      <div id="new-client-box" class="new-client-box" hidden
+           data-url="{{ url_for('clients.quick_create_client') }}">
+        <div class="form-grid">
+          <div class="field"><label>Nom du client *</label><input type="text" id="nc-name"></div>
+          <div class="field"><label>Adresse</label><input type="text" id="nc-address"></div>
+          <div class="field"><label>Code postal</label><input type="text" id="nc-postal-code"></div>
+          <div class="field"><label>Ville</label><input type="text" id="nc-city"></div>
+          <div class="field"><label>Téléphone / Email</label><input type="text" id="nc-phone"></div>
+        </div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button type="button" id="nc-save" class="btn btn--secondary btn--sm">Créer le client</button>
+          <button type="button" id="nc-cancel" class="btn btn--ghost btn--sm">Annuler</button>
+          <span id="nc-msg" class="hint" style="align-self:center;"></span>
         </div>
       </div>
     </div>

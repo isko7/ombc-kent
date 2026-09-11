@@ -27,6 +27,11 @@
         {% endfor %}
       </select>
     </div>
+    <div class="field" style="margin:0; min-width:180px;">
+      <label>Nom de mission</label>
+      <input type="text" name="name" value="{{ filters.name or '' }}" placeholder="ex. navette ou Nav%CDG">
+      <div class="hint">Recherche « contient » ; <code>%</code> pour composer votre propre motif.</div>
+    </div>
     <div class="field" style="margin:0;">
       <label>Du</label>
       <input type="date" name="date_from" value="{{ filters.date_from or '' }}">
@@ -57,7 +62,12 @@
     {% if missions %}
     <div class="btn-row" style="padding:16px 16px 0; margin-top:0;">
       <button type="submit" form="bulk-form" class="btn btn--blue">Envoyer à Randstad</button>
-      <span class="hint" style="align-self:center;">Coche les missions à inclure dans l'envoi groupé.</span>
+      <button type="submit" form="bulk-form" class="btn btn--primary"
+              formaction="{{ url_for('missions.bulk_email_drivers') }}" formmethod="post"
+              onclick="return confirm('Envoyer chaque mission cochée à son chauffeur ? Un email par mission, envoyé immédiatement.');">
+        ✉ Envoyer aux chauffeurs
+      </button>
+      <span class="hint" style="align-self:center;">Coche les missions, puis choisis l'envoi.</span>
     </div>
     <table class="data-table">
       <thead>
