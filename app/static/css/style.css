@@ -169,6 +169,13 @@ table.edit-rows select.relay-driver { width: 100%; background: #eef3fa; }
 .attachment-item .name { font-weight: 600; font-size: 13.5px; }
 .attachment-item .pos { font-size: 12px; color: var(--muted); }
 
+.pagination {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 14px 16px; border-top: 1px solid var(--line);
+}
+.pagination__info { font-size: 13px; color: var(--muted); font-weight: 700; }
+.pagination .is-disabled { opacity: .4; cursor: default; }
+
 .new-client-box {
   margin-top: 14px; padding: 14px; border: 1px dashed var(--line-strong);
   border-radius: var(--radius); background: #fafaf8;

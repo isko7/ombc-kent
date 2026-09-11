@@ -224,34 +224,54 @@ def _next_reference(db, mission_date_str):
     return f"{prefix}{max_n + 1:04d}"
 
 
-def list_missions(driver_id=None, date_from=None, date_to=None, status=None, name=None,
-                  ascending=False):
+_MISSIONS_FROM = """FROM missions m
+       JOIN drivers d ON d.id = m.driver_id
+       LEFT JOIN clients c ON c.id = m.client_id
+       WHERE 1=1"""
+
+
+def _missions_filters(driver_id, date_from, date_to, status, name):
+    """Fragment WHERE + paramètres, partagé par list_missions() et
+    count_missions() pour que le total de la pagination corresponde
+    exactement aux lignes affichées."""
+    q, params = "", []
+    if driver_id:
+        q += " AND m.driver_id = ?"
+        params.append(driver_id)
+    if date_from:
+        q += " AND m.mission_date >= ?"
+        params.append(date_from)
+    if date_to:
+        q += " AND m.mission_date <= ?"
+        params.append(date_to)
+    if status:
+        q += " AND m.status = ?"
+        params.append(status)
+    if name:
+        # Le joker % est laissé à la main de l'utilisateur ; sans joker,
+        # on cherche « contient » (comportement attendu par défaut).
+        q += " AND m.mission_name LIKE ?"
+        params.append(name if "%" in name else f"%{name}%")
+    return q, params
+
+
+def count_missions(driver_id=None, date_from=None, date_to=None, status=None, name=None):
+    where, params = _missions_filters(driver_id, date_from, date_to, status, name)
     with get_db() as db:
-        q = """SELECT m.*, d.last_name AS driver_last_name, d.first_name AS driver_first_name,
-                      c.name AS client_name
-               FROM missions m
-               JOIN drivers d ON d.id = m.driver_id
-               LEFT JOIN clients c ON c.id = m.client_id
-               WHERE 1=1"""
-        params = []
-        if driver_id:
-            q += " AND m.driver_id = ?"
-            params.append(driver_id)
-        if date_from:
-            q += " AND m.mission_date >= ?"
-            params.append(date_from)
-        if date_to:
-            q += " AND m.mission_date <= ?"
-            params.append(date_to)
-        if status:
-            q += " AND m.status = ?"
-            params.append(status)
-        if name:
-            # Le joker % est laissé à la main de l'utilisateur ; sans joker,
-            # on cherche « contient » (comportement attendu par défaut).
-            q += " AND m.mission_name LIKE ?"
-            params.append(name if "%" in name else f"%{name}%")
-        q += " ORDER BY m.mission_date ASC, m.id ASC" if ascending else " ORDER BY m.mission_date DESC, m.id DESC"
+        return db.execute(f"SELECT COUNT(*) AS c {_MISSIONS_FROM}{where}", params).fetchone()["c"]
+
+
+def list_missions(driver_id=None, date_from=None, date_to=None, status=None, name=None,
+                  ascending=False, limit=None, offset=0):
+    where, params = _missions_filters(driver_id, date_from, date_to, status, name)
+    q = f"""SELECT m.*, d.last_name AS driver_last_name, d.first_name AS driver_first_name,
+                   c.name AS client_name
+            {_MISSIONS_FROM}{where}"""
+    q += " ORDER BY m.mission_date ASC, m.id ASC" if ascending else " ORDER BY m.mission_date DESC, m.id DESC"
+    if limit is not None:
+        q += " LIMIT ? OFFSET ?"
+        params += [limit, offset]
+    with get_db() as db:
         return rows_to_dicts(db.execute(q, params).fetchall())
 
 

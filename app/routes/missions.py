@@ -25,6 +25,8 @@ ATTACHMENT_POSITIONS = [
 
 ALLOWED_ATTACHMENT_EXT = {".pdf", ".png", ".jpg", ".jpeg"}
 
+PER_PAGE = 50
+
 
 def _at(lst, i, default=""):
     return lst[i] if i < len(lst) else default
@@ -146,12 +148,20 @@ def list_missions_view():
     else:
         eff_from, eff_to = (max(date_from, today) if date_from else today), date_to
 
+    criteria = dict(driver_id=driver_id, date_from=eff_from, date_to=eff_to,
+                    status=status, name=name)
+    total = repo.count_missions(**criteria)
+    total_pages = max(1, -(-total // PER_PAGE))  # division entière arrondie au supérieur
+    page = min(max(request.args.get("page", type=int) or 1, 1), total_pages)
+
     missions = repo.list_missions(
-        driver_id=driver_id, date_from=eff_from, date_to=eff_to, status=status, name=name,
+        **criteria,
         ascending=(tab == "current"),  # à venir : le plus proche d'abord
+        limit=PER_PAGE, offset=(page - 1) * PER_PAGE,
     )
     return render_template(
         "missions/list.html", missions=missions, drivers=repo.list_drivers(), tab=tab,
+        total=total, page=page, total_pages=total_pages,
         filters={"driver_id": driver_id, "date_from": date_from, "date_to": date_to,
                  "status": status, "name": name},
     )
