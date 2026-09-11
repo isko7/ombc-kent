@@ -32,7 +32,7 @@ from app.config import (
     COMPANY, OM_LEGAL_REF, BC_LEGAL_REF, BASE_DIR,
     PDF_ENGINE, WKHTMLTOPDF_BIN, PDF_RENDER_URL, PDF_RENDER_SECRET,
 )
-from app.utils import fmt_time, fmt_date_short, fmt_date_long, day_label
+from app.utils import fmt_time, fmt_date_short, fmt_date_long, day_label, shuttle_number
 
 LOGO_PATH = BASE_DIR / "app" / "static" / "img" / "logo.png"
 _logo_b64_cache = None
@@ -226,6 +226,7 @@ def build_om_context(mission):
         "company": COMPANY,
         "om_legal_ref": OM_LEGAL_REF,
         "mission_name": mission.get("mission_name") or "",
+        "shuttle_number": shuttle_number(mission.get("shuttle_label")),
         "driver_name": f"{driver['last_name']} {driver['first_name']}",
         "mission_day_label": day_label(mission["mission_date"]),
         "mission_date_label": fmt_date_long(mission["mission_date"]),

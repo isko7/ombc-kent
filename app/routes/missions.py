@@ -13,7 +13,7 @@ from app.pdf_service import (
     POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC,
 )
 from app.email_service import send_mission_email, send_bulk_email, EmailError
-from app.utils import fmt_date_full, fmt_date_long, fmt_date_short, fmt_time
+from app.utils import fmt_date_full, fmt_date_long, fmt_date_short, fmt_time, shuttle_number
 
 bp = Blueprint("missions", __name__, url_prefix="/missions")
 
@@ -198,12 +198,7 @@ def _billing_summary(mission):
     else:
         direction = "Aller" if n_pickup >= n_dropoff else "Retour"
 
-    # shuttle_label ne contient que le numéro (« 3 ») ; on tolère quand même
-    # une saisie du type « Navette 3 » pour ne pas écrire « NAVETTE NAVETTE 3 ».
-    number = (mission.get("shuttle_label") or "").strip()
-    if number.lower().startswith("navette"):
-        number = number[len("navette"):].strip()
-
+    number = shuttle_number(mission.get("shuttle_label"))
     start = legs[0]["start_time"] if legs else (stops[0]["stop_time"] if stops else "")
     header = " - ".join([
         f"NAVETTE {number or 'X'}",
