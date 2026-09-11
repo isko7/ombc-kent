@@ -175,7 +175,7 @@ def _billing_summary(mission):
     """Récapitulatif à copier-coller pour la facturation (affiché sur la
     fiche mission, jamais dans le PDF) :
 
-        NAVETTE X - Aller - 24/08/2026 03h30
+        NAVETTE 3 - Aller - 24/08/2026 03h30
 
         Prise en charge : Illiers-Combray, 1 rue A - 2 pax
         Dépose : Fleury-les-Aubrais, PK Simplon - 6 pax
@@ -195,9 +195,15 @@ def _billing_summary(mission):
     else:
         direction = "Aller" if n_pickup >= n_dropoff else "Retour"
 
+    # shuttle_label ne contient que le numéro (« 3 ») ; on tolère quand même
+    # une saisie du type « Navette 3 » pour ne pas écrire « NAVETTE NAVETTE 3 ».
+    number = (mission.get("shuttle_label") or "").strip()
+    if number.lower().startswith("navette"):
+        number = number[len("navette"):].strip()
+
     start = legs[0]["start_time"] if legs else (stops[0]["stop_time"] if stops else "")
     header = " - ".join([
-        mission.get("shuttle_label") or "NAVETTE X",
+        f"NAVETTE {number or 'X'}",
         direction,
         f"{fmt_date_long(mission['mission_date'])} {fmt_time(start)}".strip(),
     ])
