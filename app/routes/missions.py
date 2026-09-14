@@ -233,7 +233,6 @@ def _billing_summary(mission):
     puis on dépose tout le monde au même endroit), une prise en charge
     unique = retour."""
     stops = mission.get("stops") or []
-    legs = mission.get("legs") or []
 
     n_pickup = sum(1 for s in stops if s["stop_type"] == "prise_en_charge")
     n_dropoff = len(stops) - n_pickup
@@ -245,7 +244,8 @@ def _billing_summary(mission):
         direction = "Aller" if n_pickup >= n_dropoff else "Retour"
 
     number = shuttle_number(mission.get("shuttle_label"))
-    start = legs[0]["start_time"] if legs else (stops[0]["stop_time"] if stops else "")
+    # Heure du 1er arrêt du Billet Collectif (pas celle de la prise de service).
+    start = stops[0]["stop_time"] if stops else ""
     header = " - ".join([
         f"NAVETTE {number or 'X'}",
         direction,
@@ -416,7 +416,7 @@ def _driver_email_defaults(mission):
     entre l'envoi unitaire (page de rédaction) et l'envoi groupé « chaque
     mission à son chauffeur »."""
     label = fmt_date_full(mission["mission_date"])
-    subject = f"{COMPANY['name']} — Ordre de mission du {label}"
+    subject = f"Ordre de mission du {label}"
     body = (
         f"Bonjour {mission['driver']['first_name']},\n\n"
         f"Veuillez trouver ci-joint votre ordre de mission et le billet collectif "

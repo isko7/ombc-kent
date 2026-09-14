@@ -41,14 +41,6 @@
   </div>
 
   <div class="card">
-    <h2 style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-      <span>Récap facturation <span style="font-weight:400; text-transform:none; letter-spacing:0;">(généré, absent du PDF)</span></span>
-      <button type="button" class="btn btn--secondary btn--sm" id="copy-billing">Copier</button>
-    </h2>
-    <pre id="billing-summary" class="billing-summary">{{ billing_summary }}</pre>
-  </div>
-
-  <div class="card">
     <h2>Trajets (Ordre de Mission)</h2>
     {% if mission.legs %}
     <table class="data-table">
@@ -160,6 +152,14 @@
     </table>
   </div>
   {% endif %}
+
+  <div class="card">
+    <h2 style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+      <span>Récap facturation <span style="font-weight:400; text-transform:none; letter-spacing:0;">(généré, absent du PDF)</span></span>
+      <button type="button" class="btn btn--secondary btn--sm" id="copy-billing">Copier</button>
+    </h2>
+    <pre id="billing-summary" class="billing-summary">{{ billing_summary }}</pre>
+  </div>
 
   <form method="post" action="{{ url_for('missions.delete_mission', mission_id=mission.id) }}"
         onsubmit="return confirm('Supprimer définitivement cet ordre de mission ?');">
