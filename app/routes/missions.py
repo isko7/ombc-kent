@@ -177,11 +177,14 @@ def estimate_leg_duration():
     destination = request.form.get("to", "").strip()
     if not origin or not destination:
         return jsonify({"ok": False, "error": "Le libellé doit être de la forme « départ → arrivée »."}), 400
+    # Heure de début prioritaire ; à défaut, heure de fin (arriver à l'heure).
+    start_time = request.form.get("start_time", "").strip() or None
+    end_time = request.form.get("end_time", "").strip() or None
     try:
         result = estimate_route(
             origin, destination,
             mission_date=request.form.get("mission_date") or None,
-            start_time=request.form.get("start_time") or None,
+            start_time=start_time, end_time=end_time,
         )
     except RoutingError as e:
         return jsonify({"ok": False, "error": str(e)}), 502
@@ -192,7 +195,9 @@ def estimate_leg_duration():
         "km": round(result["distance_m"] / 1000),
         "traffic_min": round(result["traffic_delay_s"] / 60),
         "with_traffic_at": result["departure"],
-        "end_time": add_minutes(request.form.get("start_time"), result["duration_s"]),
+        # Heure estimée, affichée seulement — les champs ne sont pas modifiés.
+        "arrival_time": add_minutes(start_time, result["duration_s"]) if start_time else None,
+        "departure_time": add_minutes(end_time, -result["duration_s"]) if not start_time and end_time else None,
     })
 
 

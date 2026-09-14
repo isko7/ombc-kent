@@ -116,7 +116,7 @@
     <form method="post" action="{{ url_for('missions.upload_attachment', mission_id=mission.id) }}" enctype="multipart/form-data"
           id="attach-form" style="margin-top:10px;">
       <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
-        <div class="field" style="margin:0; flex:1; min-width:260px;">
+        <div class="field" style="margin:0; flex:1; min-width:min(260px, 100%);">
           <label>Fichier (PDF, PNG, JPG)</label>
           <div id="attach-dropzone" class="dropzone">
             <input type="file" id="attach-file" name="file" accept=".pdf,.png,.jpg,.jpeg" required hidden>
@@ -125,7 +125,7 @@
           </div>
           <input type="hidden" name="pages" id="attach-pages">
         </div>
-        <div class="field" style="margin:0; min-width:280px;">
+        <div class="field" style="margin:0; min-width:min(280px, 100%);">
           <label>Position dans le document final</label>
           <select name="insert_after_page">
             {% for value, text in positions %}
