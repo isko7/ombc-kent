@@ -235,3 +235,73 @@ table.edit-rows td { position: relative; }
 .tab--active { color: var(--red); border-bottom-color: var(--red); }
 
 footer.app-footer { text-align: center; color: var(--muted); font-size: 12px; padding: 30px 0; }
+
+/* ------------------------------------------------------------ responsive */
+.topbar__nav { overflow-x: auto; scrollbar-width: none; }
+.topbar__nav::-webkit-scrollbar { display: none; }
+.topbar__nav a { white-space: nowrap; }
+
+@media (max-width: 720px) {
+  .topbar { gap: 14px; padding: 0 12px; height: 54px; }
+  .topbar__brand img { height: 22px; }
+  .topbar__nav a { padding: 8px 10px; font-size: 13.5px; }
+
+  .container { padding: 18px 14px 48px; }
+  .card { padding: 16px; }
+  .page-head h1 { font-size: 19px; }
+  .page-head > .btn, .page-head > form { width: 100%; }
+  .page-head > .btn, .page-head > form .btn { justify-content: center; width: 100%; }
+
+  /* 16px minimum : sinon iOS zoome sur le champ au focus */
+  input[type=text], input[type=email], input[type=tel], input[type=date], input[type=number],
+  input[type=password], select, textarea { font-size: 16px; }
+
+  .filter-bar .field { flex: 1 1 100%; min-width: 0 !important; }
+  .filter-bar .field:has(input[type=date]) { flex-basis: calc(50% - 7px); }
+
+  .tabs { overflow-x: auto; }
+  .tab { white-space: nowrap; }
+
+  /* Tableaux de consultation → cartes : une ligne par cellule, titre de
+     colonne à gauche (data-label posé par le script de base.html). */
+  table.data-table, table.data-table tbody, table.data-table tr, table.data-table td { display: block; }
+  table.data-table thead { display: none; }
+  table.data-table tr { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  table.data-table tr:hover td { background: none; }
+  table.data-table td { border: 0; padding: 3px 0; text-align: right; overflow-wrap: anywhere; }
+  table.data-table td:not([data-label]) { text-align: left; }
+  table.data-table td[data-label] { display: flow-root; min-height: 27px; }
+  table.data-table td[data-label]::before {
+    content: attr(data-label); float: left; margin-right: 12px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); font-weight: 700;
+    line-height: 21px;
+  }
+  table.data-table td .flag-row { justify-content: flex-end; }
+  table.data-table td.row-actions { padding-top: 8px; }
+  .card > table.data-table tr:last-child { border-bottom: 0; }
+  .card[style*="padding:0"] > .btn-row { padding: 14px 16px 0 !important; }
+
+  /* Tableaux de saisie (arrêts / trajets) → une carte par ligne, en grille */
+  table.edit-rows, table.edit-rows tbody { display: block; }
+  table.edit-rows thead { display: none; }
+  table.edit-rows tr {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px;
+    padding: 10px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  table.edit-rows td { padding: 2px 0; }
+  table.edit-rows td[data-label]::before {
+    content: attr(data-label); display: block; margin-bottom: 2px;
+    font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 700;
+  }
+  table.edit-rows input, table.edit-rows select { font-size: 16px; }
+  #stops-table td:nth-child(1), #stops-table td:nth-child(4), #stops-table td:nth-child(5),
+  #legs-table td:nth-child(3), #legs-table td:nth-child(4),
+  table.edit-rows td.row-actions { grid-column: 1 / -1; }
+  table.edit-rows td.row-actions { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 4px; }
+  .row-move { font-size: 16px; padding: 8px 10px; }
+  .row-remove { font-size: 24px; padding: 4px 10px; }
+  .addr-suggestions { left: 0; right: 0; }
+
+  .attachment-item { gap: 10px; }
+  .attachment-item .name { overflow-wrap: anywhere; }
+}
