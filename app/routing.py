@@ -98,21 +98,24 @@ def geocode(query):
     raise RoutingError(f"lieu introuvable : « {query} »")
 
 
-def _depart_at(mission_date, start_time):
+def _datetime_param(mission_date, time):
     """« 2026-09-20 » + « 08:00 » -> « 2026-09-20T08:00:00 ». Renvoie None
-    si la date est incomplète ou déjà passée : TomTom refuse un départ
+    si la date est incomplète ou déjà passée : TomTom refuse une heure
     dans le passé, on retombe alors sur le trafic courant."""
-    if not mission_date or not start_time:
+    if not mission_date or not time:
         return None
     try:
-        dt = datetime.fromisoformat(f"{mission_date}T{start_time.replace('h', ':')}")
+        dt = datetime.fromisoformat(f"{mission_date}T{time.replace('h', ':')}")
     except ValueError:
         return None
     return None if dt <= datetime.now() else dt.strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def estimate_route(origin, destination, mission_date=None, start_time=None):
-    """Renvoie {duration_s, distance_m, traffic_delay_s, departure}."""
+def estimate_route(origin, destination, mission_date=None, start_time=None, end_time=None):
+    """Renvoie {duration_s, distance_m, traffic_delay_s, departure}.
+
+    Trafic calculé pour un départ à `start_time` en priorité, sinon pour
+    une arrivée à `end_time` (`departure` vaut alors cette heure d'arrivée)."""
     if not TOMTOM_API_KEY:
         raise RoutingError(
             "Clé TomTom absente : renseignez TOMTOM_API_KEY pour activer l'estimation."
@@ -120,9 +123,14 @@ def estimate_route(origin, destination, mission_date=None, start_time=None):
     (lat1, lon1), (lat2, lon2) = geocode(origin), geocode(destination)
 
     params = {"key": TOMTOM_API_KEY, "travelMode": "car", "traffic": "true"}
-    departure = _depart_at(mission_date, start_time)
-    if departure:
-        params["departAt"] = departure
+    if start_time:
+        departure = _datetime_param(mission_date, start_time)
+        if departure:
+            params["departAt"] = departure
+    else:
+        departure = _datetime_param(mission_date, end_time)
+        if departure:
+            params["arriveAt"] = departure
 
     url = TOMTOM_ROUTE_URL.format(coords=f"{lat1},{lon1}:{lat2},{lon2}")
     data = _get_json(url + "?" + urllib.parse.urlencode(params))
@@ -146,8 +154,8 @@ def format_duration(seconds):
 
 
 def add_minutes(start_time, seconds):
-    """« 08:00 » + 3900 s -> « 09:05 ». None si l'heure de départ est vide
-    ou illisible."""
+    """« 08:00 » + 3900 s -> « 09:05 » (secondes négatives : on recule).
+    None si l'heure est vide ou illisible."""
     try:
         base = datetime.strptime((start_time or "").replace("h", ":"), "%H:%M")
     except ValueError:

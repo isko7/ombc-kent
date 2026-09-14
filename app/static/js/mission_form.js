@@ -161,11 +161,11 @@ async function estimateLeg(button) {
     return;
   }
 
-  const startInput = tr.querySelector('[name="leg_start_time[]"]');
   const body = new FormData();
   body.append("from", parts[0].trim());
   body.append("to", parts[1].trim());
-  body.append("start_time", startInput.value.trim());
+  body.append("start_time", tr.querySelector('[name="leg_start_time[]"]').value.trim());
+  body.append("end_time", tr.querySelector('[name="leg_end_time[]"]').value.trim());
   const missionDate = document.querySelector('[name="mission_date"]');
   body.append("mission_date", missionDate ? missionDate.value : "");
 
@@ -180,12 +180,13 @@ async function estimateLeg(button) {
       result.className = "estimate-result estimate-result--error";
       return;
     }
-    let text = `≈ ${data.duration} · ${data.km} km`;
+    // Affichage seul : les heures saisies ne sont jamais modifiées.
+    let text = `≈ ${data.duration}`;
+    if (data.arrival_time) text += ` (arrivée estimée ${data.arrival_time})`;
+    else if (data.departure_time) text += ` (départ estimé ${data.departure_time})`;
+    text += ` · ${data.km} km`;
     if (data.traffic_min > 0) text += ` (dont ${data.traffic_min} min de trafic)`;
     if (!data.with_traffic_at) text += " · trafic actuel";
-    // L'heure de fin n'est calculable que si l'heure de début est saisie.
-    const endInput = tr.querySelector('[name="leg_end_time[]"]');
-    if (data.end_time && endInput) endInput.value = data.end_time;
     result.textContent = text;
   } catch (e) {
     result.textContent = "Estimation indisponible : " + e.message;
