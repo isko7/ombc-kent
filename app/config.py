@@ -150,6 +150,12 @@ RANDSTAD_EMAIL = env("RANDSTAD_EMAIL", "")
 # mission (le reste de la liste est alphabétique).
 PINNED_CLIENT_NAME = env("PINNED_CLIENT_NAME", "Simplon Voyages")
 
+# --- Planning / partage calendrier -------------------------------------
+# Secret pour le flux iCalendar public GET /planning/calendrier.ics?token=...
+# (abonnement iPhone/Android). Laisser vide désactive le flux (404), comme
+# SEED_SECRET pour /admin/init.
+CALENDAR_FEED_TOKEN = env("CALENDAR_FEED_TOKEN", "")
+
 # --- Estimation des durées de trajet ----------------------------------
 # Clé TomTom (developer.tomtom.com) pour le calcul d'itinéraire avec
 # trafic à l'heure de départ. Sans clé, le bouton « Estimer » renvoie un

@@ -13,6 +13,7 @@
     </div>
     <nav class="topbar__nav">
       <a href="{{ url_for('missions.list_missions_view') }}" class="{{ 'active' if request.blueprint == 'missions' }}">Ordres de mission</a>
+      <a href="{{ url_for('planning.calendar_view') }}" class="{{ 'active' if request.blueprint == 'planning' }}">Planning</a>
       <a href="{{ url_for('drivers.list_drivers_view') }}" class="{{ 'active' if request.blueprint == 'drivers' }}">Chauffeurs</a>
       <a href="{{ url_for('vehicles.list_vehicles_view') }}" class="{{ 'active' if request.blueprint == 'vehicles' }}">Véhicules</a>
       <a href="{{ url_for('clients.list_clients_view') }}" class="{{ 'active' if request.blueprint == 'clients' }}">Clients</a>
