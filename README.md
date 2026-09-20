@@ -22,6 +22,11 @@ Déployée sur **Vercel** (fonctions serverless), base **MySQL**.
 - **Templates OM / BC modifiables** : le HTML/Jinja2 qui génère les PDF est
   stocké en base, éditable depuis *Templates* (aperçu sur données de démo,
   duplication pour tester une variante).
+- **Planning** : vue calendrier hebdomadaire des missions (grille horaire
+  sur desktop, agenda par jour sur mobile), colorée par chauffeur (couleur
+  personnalisable sur la fiche chauffeur), clic sur une mission → son
+  ordre de mission. Flux **iCalendar** partageable, à abonner depuis
+  Calendrier (iPhone) ou Google Agenda (Android) — voir `CALENDAR_FEED_TOKEN`.
 
 ## Stack technique
 
@@ -80,6 +85,7 @@ Dans *Project → Settings → Environment Variables* :
 | `PDF_RENDER_SECRET` | une chaîne aléatoire (partagée entre les 2 fonctions, définie une seule fois ici) |
 | `SECRET_KEY` | une chaîne aléatoire |
 | `SEED_SECRET` | une chaîne aléatoire (pour la route d'initialisation, voir §3) |
+| `CALENDAR_FEED_TOKEN` | une chaîne aléatoire (active le flux iCalendar partageable de l'écran Planning) |
 | `SMTP_AUTH_METHOD` | `basic` (ou `oauth2_o365`) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | identifiants SMTP |
 | `SMTP_FROM_NAME` / `SMTP_FROM_EMAIL` | expéditeur affiché |
@@ -196,6 +202,7 @@ app/
   repo.py             accès aux données (SQL brut)
   pdf_service.py       rendu Jinja2 -> HTML -> PDF -> fusion pypdf
   email_service.py     envoi SMTP (basic ou OAuth2 O365)
+  ical_service.py       génération du flux iCalendar (planning)
   utils.py             formats de date/heure en français
   routes/              blueprints Flask
   templates/           pages Jinja2 (interface web)

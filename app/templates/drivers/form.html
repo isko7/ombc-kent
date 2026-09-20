@@ -37,6 +37,17 @@
       </div>
     </div>
     <div class="field">
+      <label>Couleur sur le planning</label>
+      <input type="hidden" name="color" id="color-input" value="{{ driver.color or '' }}">
+      <div class="color-swatches" id="color-swatches">
+        {% for c in palette %}
+        <button type="button" class="color-swatch" data-color="{{ c }}" style="background:{{ c }};" title="{{ c }}" aria-label="{{ c }}"></button>
+        {% endfor %}
+        <input type="color" id="color-custom" value="{{ driver.color or palette[0] }}" title="Autre couleur">
+      </div>
+      <div class="hint">Utilisée pour distinguer ce chauffeur sur l'écran Planning. Laisser sur une couleur de la palette, ou choisir une couleur personnalisée.</div>
+    </div>
+    <div class="field">
       <label>Notes</label>
       <textarea name="notes">{{ driver.notes or '' }}</textarea>
     </div>
@@ -46,4 +57,31 @@
       <a href="{{ url_for('drivers.list_drivers_view') }}" class="btn btn--secondary">Annuler</a>
     </div>
   </form>
+
+  <script>
+    (function () {
+      var hidden = document.getElementById("color-input");
+      var swatches = document.querySelectorAll("#color-swatches .color-swatch");
+      var custom = document.getElementById("color-custom");
+
+      function markSelected(color) {
+        swatches.forEach(function (btn) {
+          btn.classList.toggle("is-selected", btn.getAttribute("data-color").toLowerCase() === (color || "").toLowerCase());
+        });
+      }
+      swatches.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var color = btn.getAttribute("data-color");
+          hidden.value = color;
+          custom.value = color;
+          markSelected(color);
+        });
+      });
+      custom.addEventListener("input", function () {
+        hidden.value = custom.value;
+        markSelected(custom.value);
+      });
+      markSelected(hidden.value);
+    })();
+  </script>
 {% endblock %}

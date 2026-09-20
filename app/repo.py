@@ -42,10 +42,11 @@ def get_driver(driver_id):
 def create_driver(data):
     with get_db() as db:
         cur = db.execute(
-            """INSERT INTO drivers (last_name, first_name, email, phone, license_number, active, notes)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO drivers (last_name, first_name, email, phone, license_number, active, color, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (data["last_name"], data["first_name"], data["email"], data.get("phone"),
-             data.get("license_number"), 1 if data.get("active", True) else 0, data.get("notes")),
+             data.get("license_number"), 1 if data.get("active", True) else 0,
+             data.get("color") or None, data.get("notes")),
         )
         return cur.lastrowid
 
@@ -54,9 +55,10 @@ def update_driver(driver_id, data):
     with get_db() as db:
         db.execute(
             """UPDATE drivers SET last_name=?, first_name=?, email=?, phone=?, license_number=?,
-               active=?, notes=?, updated_at=? WHERE id=?""",
+               active=?, color=?, notes=?, updated_at=? WHERE id=?""",
             (data["last_name"], data["first_name"], data["email"], data.get("phone"),
-             data.get("license_number"), 1 if data.get("active", True) else 0, data.get("notes"),
+             data.get("license_number"), 1 if data.get("active", True) else 0,
+             data.get("color") or None, data.get("notes"),
              now_iso(), driver_id),
         )
 
@@ -274,6 +276,31 @@ def list_missions(driver_id=None, date_from=None, date_to=None, status=None, nam
         params += [limit, offset]
     with get_db() as db:
         return rows_to_dicts(db.execute(q, params).fetchall())
+
+
+def list_missions_for_planning(date_from, date_to, driver_id=None):
+    """Missions d'une période (bornes incluses) avec leurs trajets, pour le
+    planning/calendrier. Les trajets sont chargés en une seconde requête
+    (IN sur les ids) plutôt qu'un JOIN mission par mission : évite le N+1
+    tout en gardant repo.list_missions() comme unique source de filtrage."""
+    missions = list_missions(driver_id=driver_id, date_from=date_from, date_to=date_to, ascending=True)
+    if not missions:
+        return missions
+    ids = [m["id"] for m in missions]
+    with get_db() as db:
+        placeholders = ",".join(["?"] * len(ids))
+        legs = rows_to_dicts(db.execute(
+            f"""SELECT l.mission_id, l.start_time, l.end_time, v.plate AS vehicle_plate
+                FROM mission_legs l LEFT JOIN vehicles v ON v.id = l.vehicle_id
+                WHERE l.mission_id IN ({placeholders}) ORDER BY l.mission_id, l.position""",
+            ids,
+        ).fetchall())
+    by_mission = {}
+    for leg in legs:
+        by_mission.setdefault(leg["mission_id"], []).append(leg)
+    for m in missions:
+        m["legs"] = by_mission.get(m["id"], [])
+    return missions
 
 
 def get_mission(mission_id):

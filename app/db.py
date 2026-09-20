@@ -33,6 +33,7 @@ SCHEMA_STATEMENTS = [
         phone VARCHAR(40),
         license_number VARCHAR(60),
         active TINYINT(1) NOT NULL DEFAULT 1,
+        color VARCHAR(9),
         notes TEXT,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -172,6 +173,7 @@ MIGRATIONS = [
     "ALTER TABLE missions ADD COLUMN sent_randstad_at DATETIME NULL",
     "ALTER TABLE missions ADD COLUMN sent_driver_at DATETIME NULL",
     "ALTER TABLE missions ADD COLUMN shuttle_label VARCHAR(120)",
+    "ALTER TABLE drivers ADD COLUMN color VARCHAR(9)",
 ]
 
 
