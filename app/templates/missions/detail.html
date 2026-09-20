@@ -56,6 +56,13 @@
         {% endfor %}
       </tbody>
     </table>
+    {% if legs_summary %}
+    <div class="legs-summary">
+      <span><span>{{ legs_summary.driving | fmt_hours_minutes }}</span> de conduite</span>
+      <span><span>{{ legs_summary.pause | fmt_hours_minutes }}</span> de pause</span>
+      <span>amplitude <span>{{ legs_summary.amplitude | fmt_hours_minutes }}</span></span>
+    </div>
+    {% endif %}
     {% else %}
     <div class="empty-state">Aucun trajet renseigné. <a href="{{ url_for('missions.edit_mission', mission_id=mission.id) }}">Ajouter des trajets</a></div>
     {% endif %}

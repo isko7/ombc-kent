@@ -198,6 +198,7 @@
       <div class="legs-summary" id="legs-summary">
         <span><strong>Total :</strong> <span id="legs-summary-km">—</span></span>
         <span><span id="legs-summary-driving">—</span> de conduite</span>
+        <span><span id="legs-summary-pause">—</span> de pause</span>
         <span>amplitude <span id="legs-summary-amplitude">—</span></span>
       </div>
       <button type="button" id="add-leg-row" class="btn btn--secondary btn--sm add-row-btn">+ Ajouter un trajet</button>
@@ -214,8 +215,8 @@
     <tr>
       <td>
         <select name="stop_type[]">
-          <option value="prise_en_charge">Prise en charge</option>
-          <option value="depose" selected>Dépose</option>
+          <option value="prise_en_charge" selected>Prise en charge</option>
+          <option value="depose">Dépose</option>
         </select>
       </td>
       <td><input type="date" name="stop_date[]" value="{{ mission.mission_date or '' }}"></td>

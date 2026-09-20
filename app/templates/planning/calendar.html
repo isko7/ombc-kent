@@ -124,7 +124,7 @@
       {% if day_events %}
         {% for ev in day_events %}
         <a href="{{ ev.url }}" class="planning-chip" style="--chip-color: {{ ev.color }};">
-          <span class="planning-chip__time">{{ 'Toute la journée' if ev.all_day else (ev.start_time ~ '–' ~ ev.end_time) }}</span>
+          <span class="planning-chip__time">{{ 'Toute la journée' if ev.all_day else ((ev.start_time | fmt_time) ~ '–' ~ (ev.end_time | fmt_time)) }}</span>
           <span class="planning-chip__title">{{ ev.title }}</span>
           <span class="planning-chip__meta">{{ ev.driver_name }}{% if ev.vehicle %} · {{ ev.vehicle }}{% endif %}</span>
         </a>

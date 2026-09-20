@@ -278,12 +278,11 @@ def list_missions(driver_id=None, date_from=None, date_to=None, status=None, nam
         return rows_to_dicts(db.execute(q, params).fetchall())
 
 
-def list_missions_for_planning(date_from, date_to, driver_id=None):
-    """Missions d'une période (bornes incluses) avec leurs trajets, pour le
-    planning/calendrier. Les trajets sont chargés en une seconde requête
-    (IN sur les ids) plutôt qu'un JOIN mission par mission : évite le N+1
-    tout en gardant repo.list_missions() comme unique source de filtrage."""
-    missions = list_missions(driver_id=driver_id, date_from=date_from, date_to=date_to, ascending=True)
+def attach_legs(missions):
+    """Complète chaque mission de `missions` avec sa liste de trajets
+    (`m['legs']`), en une seule requête IN plutôt qu'un aller-retour par
+    mission (évite le N+1) — utilisé par la liste des OM (heures de
+    service) et le planning/calendrier."""
     if not missions:
         return missions
     ids = [m["id"] for m in missions]
@@ -301,6 +300,13 @@ def list_missions_for_planning(date_from, date_to, driver_id=None):
     for m in missions:
         m["legs"] = by_mission.get(m["id"], [])
     return missions
+
+
+def list_missions_for_planning(date_from, date_to, driver_id=None):
+    """Missions d'une période (bornes incluses) avec leurs trajets, pour le
+    planning/calendrier."""
+    missions = list_missions(driver_id=driver_id, date_from=date_from, date_to=date_to, ascending=True)
+    return attach_legs(missions)
 
 
 def get_mission(mission_id):

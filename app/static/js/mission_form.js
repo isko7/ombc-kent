@@ -205,7 +205,10 @@ async function estimateLeg(button) {
 // pour chaque ligne « départ → arrivée » valide, avec un petit cache par
 // ligne (tr.dataset.estKey/estKm) pour ne pas re-appeler à chaque frappe.
 function parseHHMM(value) {
-  const m = (value || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  // Tolère 'h' en plus de ':' : le champ est du texte libre, et certaines
+  // heures sont saisies "11h00" (format affiché partout ailleurs) plutôt
+  // que "11:00" (ce que routing.js/add_minutes tolèrent déjà côté serveur).
+  const m = (value || "").trim().match(/^(\d{1,2})\s*[:hH]\s*(\d{2})$/);
   return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
 }
 
@@ -233,9 +236,14 @@ function updateLegsTimeSummary() {
     }
   });
   const amplitude = (minStart != null && maxEnd != null && maxEnd >= minStart) ? (maxEnd - minStart) : null;
+  // Pause = amplitude - conduite : le reste du temps de service qui n'est
+  // pas passé à conduire (attente, relais...), pas une saisie séparée.
+  const pause = amplitude != null ? Math.max(0, amplitude - drivingMinutes) : null;
   const drivingEl = document.getElementById("legs-summary-driving");
+  const pauseEl = document.getElementById("legs-summary-pause");
   const amplitudeEl = document.getElementById("legs-summary-amplitude");
   if (drivingEl) drivingEl.textContent = formatHoursMinutes(drivingMinutes);
+  if (pauseEl) pauseEl.textContent = formatHoursMinutes(pause);
   if (amplitudeEl) amplitudeEl.textContent = formatHoursMinutes(amplitude);
 }
 

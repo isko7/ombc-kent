@@ -11,7 +11,7 @@ from flask import Blueprint, render_template, request, url_for, abort, Response
 from app import repo
 from app.config import CALENDAR_FEED_TOKEN
 from app.ical_service import build_ics, local_to_utc
-from app.utils import driver_color
+from app.utils import driver_color, service_time_range
 
 bp = Blueprint("planning", __name__, url_prefix="/planning")
 
@@ -24,7 +24,9 @@ FEED_FUTURE_DAYS = 180
 
 def _build_event(mission, drivers_by_id):
     legs = mission.get("legs") or []
-    timed = [l for l in legs if l.get("start_time") and l.get("end_time")]
+    # service_time_range() normalise ':' / 'h' et ignore les points de
+    # contrôle sans horaire exploitable (même règle que la liste des OM).
+    start_time, end_time = service_time_range(legs)
     vehicles = []
     for leg in legs:
         plate = leg.get("vehicle_plate")
@@ -45,13 +47,13 @@ def _build_event(mission, drivers_by_id):
         "date": mission["mission_date"],
         "url": url_for("missions.detail_mission", mission_id=mission["id"]),
     }
-    if timed:
+    if start_time:
         event["all_day"] = False
-        event["start_time"] = timed[0]["start_time"][:5]
-        event["end_time"] = timed[-1]["end_time"][:5]
+        event["start_time"] = start_time
+        event["end_time"] = end_time
         # Strictement < : à heures égales (trajet ponctuel), on affiche une
         # durée minimale plutôt que d'étendre le bloc jusqu'à minuit.
-        event["crosses_midnight"] = event["end_time"] < event["start_time"]
+        event["crosses_midnight"] = end_time < start_time
     else:
         event["all_day"] = True
     return event

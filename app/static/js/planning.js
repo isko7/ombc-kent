@@ -15,9 +15,13 @@
     });
   }
 
+  function fmtTime(hhmm) {
+    return hhmm.replace(":", "h");
+  }
+
   function timeLabel(ev) {
-    if (ev.crosses_midnight) return ev.start_time + " → " + ev.end_time + " (+1j)";
-    return ev.start_time + "–" + ev.end_time;
+    if (ev.crosses_midnight) return fmtTime(ev.start_time) + " → " + fmtTime(ev.end_time) + " (+1j)";
+    return fmtTime(ev.start_time) + "–" + fmtTime(ev.end_time);
   }
 
   // Empile les missions qui se chevauchent en colonnes côte à côte (façon

@@ -1,4 +1,5 @@
 """Petits utilitaires de formatage (dates/heures en français)."""
+import re
 import unicodedata
 from datetime import date, datetime, timedelta
 
@@ -25,6 +26,90 @@ def fmt_time(hhmm):
     if not hhmm:
         return ""
     return hhmm.replace(":", "h")
+
+
+_TIME_PATTERN = re.compile(r"^(\d{1,2})\s*[:hH]\s*(\d{1,2})$")
+_STRICT_TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def normalize_time(value):
+    """'11h00', '11:00', '9h5' -> '11:00' (HH:MM zero-paddé). Le champ de
+    trajet (formulaire OM) est un champ texte libre : rien n'empêche de
+    taper le séparateur 'h' qu'on voit partout ailleurs dans l'appli
+    (fmt_time) plutôt que ':'. Une valeur qui ne ressemble pas à une heure
+    (vide, texte libre type note du chauffeur) est renvoyée telle quelle,
+    sans y toucher — seul le séparateur/zéro-padding est corrigé."""
+    if not value:
+        return value
+    m = _TIME_PATTERN.match(value.strip())
+    if not m:
+        return value
+    h, mn = int(m.group(1)), int(m.group(2))
+    if not (0 <= h <= 23 and 0 <= mn <= 59):
+        return value
+    return f"{h:02d}:{mn:02d}"
+
+
+def is_valid_time(value):
+    """Vrai si `value` est strictement au format HH:MM (00-23:00-59)."""
+    return bool(value) and bool(_STRICT_TIME_PATTERN.match(value))
+
+
+def service_time_range(legs):
+    """Heure de prise de service / fin de service d'une mission : première
+    et dernière heure valide parmi ses trajets, dans l'ordre. Ignore les
+    points de contrôle sans horaire exploitable (ex. « Prise de service »
+    laissée vide, remplie à la main par le chauffeur). (None, None) si
+    aucun trajet horodaté."""
+    timed = []
+    for leg in legs or []:
+        s, e = normalize_time(leg.get("start_time")), normalize_time(leg.get("end_time"))
+        if is_valid_time(s) and is_valid_time(e):
+            timed.append((s, e))
+    if not timed:
+        return None, None
+    return timed[0][0], timed[-1][1]
+
+
+def _to_minutes(hhmm):
+    h, m = hhmm.split(":")
+    return int(h) * 60 + int(m)
+
+
+def legs_time_summary(legs):
+    """Amplitude / temps de conduite / temps de pause d'une mission, à
+    partir de ses trajets (même calcul que le récap en direct du
+    formulaire OM, mission_form.js) :
+    - amplitude : prise de service -> fin de service (service_time_range).
+    - conduite  : somme des trajets avec un véhicule réel affecté (hors
+      relais et points de contrôle).
+    - pause     : amplitude - conduite, c'est-à-dire le reste du temps de
+      service qui n'est pas passé à conduire (attente, relais...) — ce
+      n'est pas une saisie séparée, juste le complément.
+    None si pas assez d'horaires pour calculer l'amplitude."""
+    start, end = service_time_range(legs)
+    if start is None:
+        return None
+    amplitude = _to_minutes(end) - _to_minutes(start)
+    driving = 0
+    for leg in legs or []:
+        if leg.get("is_relay") or leg.get("is_checkpoint") or not leg.get("vehicle_id"):
+            continue
+        s, e = normalize_time(leg.get("start_time")), normalize_time(leg.get("end_time"))
+        if is_valid_time(s) and is_valid_time(e):
+            duration = _to_minutes(e) - _to_minutes(s)
+            if duration > 0:
+                driving += duration
+    return {"amplitude": amplitude, "driving": driving, "pause": max(0, amplitude - driving)}
+
+
+def fmt_hours_minutes(minutes):
+    """125 -> '2h05'. None/manquant -> '—' (même format que
+    formatHoursMinutes en JS, mission_form.js)."""
+    if minutes is None:
+        return "—"
+    h, m = divmod(int(round(minutes)), 60)
+    return f"{h}h{m:02d}"
 
 
 def fmt_date_short(value):
@@ -129,3 +214,4 @@ def register_jinja_filters(app):
     app.jinja_env.filters["day_label"] = day_label
     app.jinja_env.filters["driver_color"] = driver_color
     app.jinja_env.filters["fmt_week_range"] = fmt_week_range
+    app.jinja_env.filters["fmt_hours_minutes"] = fmt_hours_minutes

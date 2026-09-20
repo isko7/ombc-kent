@@ -14,7 +14,10 @@ from app.pdf_service import (
 )
 from app.email_service import send_mission_email, send_bulk_email, EmailError
 from app.routing import estimate_route, format_duration, add_minutes, RoutingError
-from app.utils import fmt_date_full, fmt_date_long, fmt_date_short, fmt_time, shuttle_number
+from app.utils import (
+    fmt_date_full, fmt_date_long, fmt_date_short, fmt_time, legs_time_summary,
+    normalize_time, service_time_range, shuttle_number,
+)
 
 bp = Blueprint("missions", __name__, url_prefix="/missions")
 
@@ -47,6 +50,9 @@ def _parse_legs(form):
         s, e, v, l = _at(starts, i).strip(), _at(ends, i).strip(), _at(vehicle_ids, i), _at(labels, i).strip()
         if not s and not e and not l:
             continue
+        # Le champ est du texte libre : normalise "11h00" saisi par réflexe
+        # (c'est le format affiché partout ailleurs) vers "11:00".
+        s, e = normalize_time(s), normalize_time(e)
         is_relay = v == "relais"
         rd = _at(relay_drivers, i)
         # Point de contrôle : début = fin, ou une prise/fin de service (dont
@@ -160,6 +166,9 @@ def list_missions_view():
         ascending=(tab == "current"),  # à venir : le plus proche d'abord
         limit=PER_PAGE, offset=(page - 1) * PER_PAGE,
     )
+    repo.attach_legs(missions)
+    for m in missions:
+        m["service_start"], m["service_end"] = service_time_range(m["legs"])
     return render_template(
         "missions/list.html", missions=missions, drivers=repo.list_drivers(), tab=tab,
         total=total, page=page, total_pages=total_pages,
@@ -271,7 +280,8 @@ def detail_mission(mission_id):
     emails = repo.list_email_log(mission_id)
     return render_template("missions/detail.html", mission=mission, emails=emails,
                             positions=ATTACHMENT_POSITIONS,
-                            billing_summary=_billing_summary(mission))
+                            billing_summary=_billing_summary(mission),
+                            legs_summary=legs_time_summary(mission["legs"]))
 
 
 @bp.route("/<int:mission_id>/modifier", methods=["GET", "POST"])
