@@ -188,12 +188,112 @@ async function estimateLeg(button) {
     if (data.traffic_min > 0) text += ` (dont ${data.traffic_min} min de trafic)`;
     if (!data.with_traffic_at) text += " · trafic actuel";
     result.textContent = text;
+    tr.dataset.estKm = String(data.km);
   } catch (e) {
     result.textContent = "Estimation indisponible : " + e.message;
     result.className = "estimate-result estimate-result--error";
   } finally {
     button.disabled = false;
+    scheduleLegsSummaryUpdate();
   }
+}
+
+// -------------------------------------------- récap Trajets (km / temps)
+// Heures de conduite + amplitude : calculées tout de suite depuis les
+// heures déjà saisies. Kilomètres : pas stockés en base (seule la mini
+// estimation par ligne les connaît), donc on interroge l'API d'estimation
+// pour chaque ligne « départ → arrivée » valide, avec un petit cache par
+// ligne (tr.dataset.estKey/estKm) pour ne pas re-appeler à chaque frappe.
+function parseHHMM(value) {
+  const m = (value || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+}
+
+function formatHoursMinutes(minutes) {
+  if (minutes == null || isNaN(minutes)) return "—";
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return `${h}h${String(m).padStart(2, "0")}`;
+}
+
+function updateLegsTimeSummary() {
+  let minStart = null, maxEnd = null, drivingMinutes = 0;
+  document.querySelectorAll("#legs-body tr").forEach((tr) => {
+    const start = parseHHMM(tr.querySelector('[name="leg_start_time[]"]').value);
+    const end = parseHHMM(tr.querySelector('[name="leg_end_time[]"]').value);
+    [start, end].forEach((t) => {
+      if (t == null) return;
+      if (minStart == null || t < minStart) minStart = t;
+      if (maxEnd == null || t > maxEnd) maxEnd = t;
+    });
+    const vSel = tr.querySelector('[name="leg_vehicle_id[]"]');
+    const isDriving = vSel && vSel.value && vSel.value !== "relais";
+    if (isDriving && start != null && end != null && end >= start) {
+      drivingMinutes += end - start;
+    }
+  });
+  const amplitude = (minStart != null && maxEnd != null && maxEnd >= minStart) ? (maxEnd - minStart) : null;
+  const drivingEl = document.getElementById("legs-summary-driving");
+  const amplitudeEl = document.getElementById("legs-summary-amplitude");
+  if (drivingEl) drivingEl.textContent = formatHoursMinutes(drivingMinutes);
+  if (amplitudeEl) amplitudeEl.textContent = formatHoursMinutes(amplitude);
+}
+
+async function estimateLegKm(tr) {
+  const label = tr.querySelector('[name="leg_label[]"]').value;
+  const parts = label.split(ARROW);
+  if (parts.length !== 2) return null;
+  const from = parts[0].trim();
+  const to = parts[1].trim();
+  if (!from || !to) return null;
+  const start = tr.querySelector('[name="leg_start_time[]"]').value.trim();
+  const end = tr.querySelector('[name="leg_end_time[]"]').value.trim();
+
+  const key = `${from}|${to}|${start}|${end}`;
+  if (tr.dataset.estKey === key) {
+    return tr.dataset.estKm ? Number(tr.dataset.estKm) : null;
+  }
+
+  const form = document.getElementById("mission-form");
+  const missionDate = document.querySelector('[name="mission_date"]');
+  const body = new FormData();
+  body.append("from", from);
+  body.append("to", to);
+  body.append("start_time", start);
+  body.append("end_time", end);
+  body.append("mission_date", missionDate ? missionDate.value : "");
+
+  try {
+    const resp = await fetch(form.dataset.estimateUrl, { method: "POST", body });
+    const data = await resp.json();
+    tr.dataset.estKey = key;
+    tr.dataset.estKm = (resp.ok && data.ok) ? String(data.km) : "";
+    return (resp.ok && data.ok) ? data.km : null;
+  } catch (e) {
+    tr.dataset.estKey = key;
+    tr.dataset.estKm = "";
+    return null;
+  }
+}
+
+let legsKmRequestToken = 0;
+async function updateLegsKmTotal() {
+  const token = ++legsKmRequestToken;
+  const rows = Array.from(document.querySelectorAll("#legs-body tr"));
+  const results = await Promise.all(rows.map(estimateLegKm));
+  if (token !== legsKmRequestToken) return; // une saisie plus récente a relancé le calcul
+  const el = document.getElementById("legs-summary-km");
+  if (!el) return;
+  let total = 0, known = 0;
+  results.forEach((km) => { if (km != null) { total += km; known += 1; } });
+  el.textContent = known > 0 ? `${Math.round(total)} km` : "—";
+}
+
+let legsSummaryTimer = null;
+function scheduleLegsSummaryUpdate() {
+  updateLegsTimeSummary();
+  clearTimeout(legsSummaryTimer);
+  legsSummaryTimer = setTimeout(updateLegsKmTotal, 600);
 }
 
 // ------------------------------------------------ création de client
@@ -293,9 +393,25 @@ function generateLegsFromStops() {
   add("", "", veh, `Fin de service - ${DEPOT}`);
 }
 
+// Répercute la date de la mission sur tous les arrêts (BC) existants,
+// pour éviter d'avoir à la corriger ligne par ligne.
+function syncStopDates(value) {
+  document.querySelectorAll('#stops-body [name="stop_date[]"]').forEach((input) => {
+    input.value = value;
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  const missionDateInput = document.querySelector('[name="mission_date"]');
+  if (missionDateInput) {
+    missionDateInput.addEventListener("change", () => syncStopDates(missionDateInput.value));
+  }
+
   const addLegBtn = document.getElementById("add-leg-row");
-  if (addLegBtn) addLegBtn.addEventListener("click", () => addRow("legs-body", "leg-row-template"));
+  if (addLegBtn) addLegBtn.addEventListener("click", () => {
+    addRow("legs-body", "leg-row-template");
+    scheduleLegsSummaryUpdate();
+  });
 
   const addStopBtn = document.getElementById("add-stop-row");
   if (addStopBtn) addStopBtn.addEventListener("click", () => {
@@ -310,10 +426,16 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const genBtn = document.getElementById("generate-legs-btn");
-  if (genBtn) genBtn.addEventListener("click", generateLegsFromStops);
+  if (genBtn) genBtn.addEventListener("click", () => {
+    generateLegsFromStops();
+    scheduleLegsSummaryUpdate();
+  });
 
   const applyBtn = document.getElementById("apply-vehicle-all");
-  if (applyBtn) applyBtn.addEventListener("click", applyVehicleToAllLegs);
+  if (applyBtn) applyBtn.addEventListener("click", () => {
+    applyVehicleToAllLegs();
+    scheduleLegsSummaryUpdate();
+  });
 
   initNewClient();
 
@@ -329,8 +451,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.body.addEventListener("click", (e) => {
-    if (e.target.matches(".row-remove")) removeRow(e.target);
-    else if (e.target.matches(".row-up")) moveRow(e.target, -1);
+    if (e.target.matches(".row-remove")) {
+      removeRow(e.target);
+      scheduleLegsSummaryUpdate();
+    } else if (e.target.matches(".row-up")) moveRow(e.target, -1);
     else if (e.target.matches(".row-down")) moveRow(e.target, 1);
     else if (e.target.matches(".estimate-leg")) estimateLeg(e.target);
     else if (!e.target.closest(".addr-suggestions")) closeSuggestions();
@@ -341,16 +465,26 @@ document.addEventListener("DOMContentLoaded", () => {
   // d'où les deux écouteurs en phase de capture.
   let addrTimer = null;
   document.body.addEventListener("input", (e) => {
-    if (!e.target.matches('[name="stop_address[]"]')) return;
-    clearTimeout(addrTimer);
-    addrTimer = setTimeout(() => showAddressSuggestions(e.target), 250);
+    if (e.target.matches('[name="stop_address[]"]')) {
+      clearTimeout(addrTimer);
+      addrTimer = setTimeout(() => showAddressSuggestions(e.target), 250);
+    } else if (e.target.matches(
+      '#legs-body [name="leg_start_time[]"], #legs-body [name="leg_end_time[]"], #legs-body [name="leg_label[]"]'
+    )) {
+      scheduleLegsSummaryUpdate();
+    }
   });
   document.body.addEventListener("focusout", (e) => {
     if (e.target.matches('[name="stop_address[]"]')) setTimeout(closeSuggestions, 150);
   });
 
   document.body.addEventListener("change", (e) => {
-    if (e.target.matches(".leg-vehicle")) toggleRelayDriver(e.target);
-    else if (e.target.matches(".relay-driver")) onRelayDriverChange(e.target);
+    if (e.target.matches(".leg-vehicle")) {
+      toggleRelayDriver(e.target);
+      scheduleLegsSummaryUpdate();
+    } else if (e.target.matches(".relay-driver")) onRelayDriverChange(e.target);
   });
+
+  // Récap Trajets à jour dès le chargement (missions existantes).
+  scheduleLegsSummaryUpdate();
 });
