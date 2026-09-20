@@ -6,6 +6,7 @@ assez simple pour que ce soit lisible tel quel. Le curseur MySQL renvoie
 déjà des dict (voir app/db.py) ; `row_to_dict` / `rows_to_dicts` restent
 là pour découpler les templates du pilote.
 """
+import re
 from datetime import datetime, date
 from app.config import PINNED_CLIENT_NAME
 from app.db import get_db
@@ -399,16 +400,35 @@ def _reverse_leg_label(label):
     return label
 
 
+_DIRECTION_SWAP = {"A": "R", "R": "A", "a": "r", "r": "a"}
+
+
+def _swap_direction_suffix(name):
+    """« NAVETTE 3 A » <-> « NAVETTE 3 R » (ou « A » <-> « R » seul) :
+    bascule le sens du trajet dans le nom de mission, en ne touchant que la
+    lettre A/R isolée en toute fin de nom (mot entier). Laisse les autres
+    noms inchangés."""
+    if not name:
+        return name
+    m = re.match(r"^(?:(.*\S)(\s+))?([ARar])$", name)
+    if not m:
+        return name
+    prefix, sep, letter = m.groups()
+    return f"{prefix or ''}{sep or ''}{_DIRECTION_SWAP[letter]}"
+
+
 def create_return_mission(mission_id):
     """Crée le trajet retour : arrêts et trajets dans l'ordre inverse,
     prise en charge <-> dépose inversées, libellés de trajet retournés
-    (« A → B » devient « B → A », prise/fin de service échangées).
+    (« A → B » devient « B → A », prise/fin de service échangées), et
+    suffixe de sens A/R du nom de mission basculé.
     Les horaires ne sont volontairement pas recalculés (à ajuster) :
     un nouveau brouillon est créé, comme pour la duplication simple."""
     src = get_mission(mission_id)
     if not src:
         return None
     data = _copy_base_fields(src)
+    data["mission_name"] = _swap_direction_suffix(data.get("mission_name"))
     data["legs"] = [_copy_leg(l) | {"label": _reverse_leg_label(l["label"])}
                      for l in reversed(src["legs"])]
     data["stops"] = [_copy_stop(s) | {"stop_type": _STOP_TYPE_SWAP.get(s["stop_type"], s["stop_type"])}
