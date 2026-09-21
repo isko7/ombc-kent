@@ -1,4 +1,4 @@
-# OM+BC — Transports KENT
+# Planning KENT — Transports KENT
 
 Application interne pour créer, stocker, modifier et envoyer les **Ordres
 de Mission (OM)** et **Billets Collectifs (BC)** de Transports KENT, à
@@ -51,7 +51,7 @@ drivers        chauffeurs
 vehicles       véhicules
 clients        donneurs d'ordre, réutilisables
 templates      gabarits OM/BC (type, html, version, actif)
-missions       un OM+BC (chauffeur, date, motif, client, statut...)
+missions       un ordre de mission (chauffeur, date, motif, client, statut...)
 mission_legs   lignes du tableau « Mission » de l'OM
 mission_stops  lignes du tableau du BC
 attachments    fichiers joints (contenu binaire + position d'insertion)
@@ -133,7 +133,7 @@ donc rien à changer à la posture de sécurité du tenant.
 
 Limite : pièces jointes inline via `sendMail` plafonnées à ~4 Mo au total
 par message (au-delà, erreur claire plutôt qu'un envoi tronqué) — largement
-suffisant pour un OM+BC, à surveiller si beaucoup de pièces jointes lourdes.
+suffisant pour un ordre de mission, à surveiller si beaucoup de pièces jointes lourdes.
 
 > **Protection de déploiement** : si l'authentification Vercel (Deployment
 > Protection) est active, l'appel interne Flask → `/api/render_pdf` est

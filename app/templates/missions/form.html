@@ -5,7 +5,9 @@
     <h1>{{ 'Nouvel ordre de mission' if is_new else 'Modifier ' ~ (mission.reference or '') }}</h1>
   </div>
 
-  <form method="post" id="mission-form" data-estimate-url="{{ url_for('missions.estimate_leg_duration') }}">
+  <form method="post" id="mission-form" data-estimate-url="{{ url_for('missions.estimate_leg_duration') }}"
+        data-address-provider="{{ address_search_provider }}"
+        data-depot-address="{{ depot_address }}">
     <div class="card">
       <h2>Informations générales</h2>
       <div class="form-grid">
@@ -182,7 +184,8 @@
             <td>
               <input type="text" name="leg_label[]" value="{{ l.label or '' }}">
               <div class="leg-estimate">
-                <button type="button" class="btn btn--ghost btn--sm estimate-leg" title="Estimer la durée avec le trafic">⏱ Estimer</button>
+                <button type="button" class="btn btn--ghost btn--sm estimate-leg" data-provider="tomtom" title="Estimer la durée avec le trafic (TomTom)">⏱ TomTom</button>
+                <button type="button" class="btn btn--ghost btn--sm estimate-leg" data-provider="google" title="Estimer la durée avec le trafic (Google Maps)">🗺 Maps</button>
                 <span class="estimate-result"></span>
               </div>
             </td>
@@ -254,7 +257,8 @@
       <td>
         <input type="text" name="leg_label[]">
         <div class="leg-estimate">
-          <button type="button" class="btn btn--ghost btn--sm estimate-leg" title="Estimer la durée avec le trafic">⏱ Estimer</button>
+          <button type="button" class="btn btn--ghost btn--sm estimate-leg" data-provider="tomtom" title="Estimer la durée avec le trafic (TomTom)">⏱ TomTom</button>
+          <button type="button" class="btn btn--ghost btn--sm estimate-leg" data-provider="google" title="Estimer la durée avec le trafic (Google Maps)">🗺 Maps</button>
           <span class="estimate-result"></span>
         </div>
       </td>
@@ -266,5 +270,10 @@
     </tr>
   </template>
 
+  {% if google_maps_api_key %}
+  {# Chargée en synchrone (pas async/defer) : mission_form.js, juste après,
+     doit trouver google.maps.places/DistanceMatrixService déjà prêts. #}
+  <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&language=fr&region=FR"></script>
+  {% endif %}
   <script src="{{ url_for('static', filename='js/mission_form.js') }}"></script>
 {% endblock %}

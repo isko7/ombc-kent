@@ -37,7 +37,7 @@ class RoutingError(Exception):
 
 
 def _get_json(url, timeout=TIMEOUT_SECONDS):
-    req = urllib.request.Request(url, headers={"User-Agent": "ombc-kent/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "planning-kent/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))

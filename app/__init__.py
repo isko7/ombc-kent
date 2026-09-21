@@ -34,7 +34,7 @@ def create_app():
 
     @app.route("/")
     def index():
-        return redirect(url_for("missions.list_missions_view"))
+        return redirect(url_for("planning.calendar_view"))
 
     @app.route("/healthz")
     def healthz():

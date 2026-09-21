@@ -93,6 +93,9 @@ SCHEMA_STATEMENTS = [
         status VARCHAR(30) NOT NULL DEFAULT 'brouillon',
         om_template_id INT NULL,
         bc_template_id INT NULL,
+        amplitude_minutes INT NULL,
+        driving_minutes INT NULL,
+        pause_minutes INT NULL,
         sent_randstad_at DATETIME NULL,
         sent_driver_at DATETIME NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -174,6 +177,9 @@ MIGRATIONS = [
     "ALTER TABLE missions ADD COLUMN sent_driver_at DATETIME NULL",
     "ALTER TABLE missions ADD COLUMN shuttle_label VARCHAR(120)",
     "ALTER TABLE drivers ADD COLUMN color VARCHAR(9)",
+    "ALTER TABLE missions ADD COLUMN amplitude_minutes INT NULL",
+    "ALTER TABLE missions ADD COLUMN driving_minutes INT NULL",
+    "ALTER TABLE missions ADD COLUMN pause_minutes INT NULL",
 ]
 
 

@@ -94,8 +94,8 @@
         a.innerHTML =
           '<div class="planning-event__time">' + escapeHtml(timeLabel(ev)) + "</div>" +
           '<div class="planning-event__title">' + escapeHtml(ev.title) + "</div>" +
-          '<div class="planning-event__meta">' + escapeHtml(ev.driver_name) +
-            (ev.vehicle ? " · " + escapeHtml(ev.vehicle) : "") + "</div>";
+          '<div class="planning-event__meta">' + escapeHtml(ev.driver_name) + "</div>" +
+          (ev.vehicle ? '<div class="planning-event__vehicle">' + escapeHtml(ev.vehicle) + "</div>" : "");
         col.appendChild(a);
       });
     });

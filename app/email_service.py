@@ -1,5 +1,5 @@
 """
-Envoi de l'OM+BC par email, en pièce jointe PDF.
+Envoi de l'Ordre de Mission par email, en pièce jointe PDF.
 
 Deux modes, choisis par SMTP_AUTH_METHOD dans .env :
 
@@ -40,7 +40,7 @@ from app.config import (
 TIMEOUT_SECONDS = 20
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 # Limite documentée de sendMail avec pièces jointes en base64 inline ; au-delà
-# il faudrait un upload session (non implémenté ici, cas rare pour des OM+BC).
+# il faudrait un upload session (non implémenté ici, cas rare pour des Ordres de Mission).
 GRAPH_MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 
 

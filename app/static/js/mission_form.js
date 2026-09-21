@@ -105,13 +105,63 @@ function syncRelayRemarks(tr, text, prev) {
 }
 
 // ------------------------------------------- autocomplétion d'adresse
-// Base Adresse Nationale : gratuite, sans clé, et surtout elle renvoie la
-// voie et la commune séparément — ce qui permet de remplir « Adresse » et
-// « Ville » d'un seul clic.
+// Deux fournisseurs, choisis par le switch global ADDRESS_SEARCH_PROVIDER
+// (.env), lu depuis #mission-form[data-address-provider] :
+// - "google" (par défaut) : Google Places, via la clé Maps JavaScript API
+//   chargée en page (voir mission_form.html). Se replie automatiquement
+//   sur la BAN si le script Google n'est pas chargé (clé absente).
+// - "gouv" : Base Adresse Nationale, gratuite et sans clé — et surtout
+//   elle renvoie la voie et la commune séparément, ce qui permet de
+//   remplir « Adresse » et « Ville » d'un seul clic.
 const BAN_URL = "https://api-adresse.data.gouv.fr/search/";
+let googlePlacesService = null;
 
 function closeSuggestions() {
   document.querySelectorAll(".addr-suggestions").forEach((el) => el.remove());
+}
+
+function addressProvider() {
+  const form = document.getElementById("mission-form");
+  return form ? form.dataset.addressProvider : "gouv";
+}
+
+function googleAvailable() {
+  return !!(window.google && google.maps && google.maps.places);
+}
+
+function googlePlacePredictions(query) {
+  return new Promise((resolve) => {
+    if (!googleAvailable()) { resolve([]); return; }
+    if (!googlePlacesService) googlePlacesService = new google.maps.places.AutocompleteService();
+    googlePlacesService.getPlacePredictions(
+      { input: query, componentRestrictions: { country: "fr" }, language: "fr" },
+      (predictions) => resolve(predictions || [])
+    );
+  });
+}
+
+// Renvoie une liste uniforme {label, name, city}, quel que soit le
+// fournisseur — c'est ce que consomme le rendu de la boîte de suggestions.
+async function fetchAddressSuggestions(query) {
+  if (addressProvider() === "google" && googleAvailable()) {
+    const predictions = await googlePlacePredictions(query);
+    return predictions.slice(0, 5).map((p) => {
+      const sf = p.structured_formatting || {};
+      const city = (sf.secondary_text || "").split(",")[0].trim();
+      return { label: p.description, name: sf.main_text || p.description, city };
+    });
+  }
+  try {
+    const resp = await fetch(BAN_URL + "?" + new URLSearchParams({ q: query, limit: "5" }));
+    const features = (await resp.json()).features || [];
+    return features.map((f) => ({
+      label: f.properties.label,
+      name: f.properties.name || f.properties.label,
+      city: f.properties.city || "",
+    }));
+  } catch (e) {
+    return []; // hors ligne / API indisponible : on laisse la saisie libre
+  }
 }
 
 async function showAddressSuggestions(input) {
@@ -119,28 +169,22 @@ async function showAddressSuggestions(input) {
   closeSuggestions();
   if (q.length < 3) return;
 
-  let features;
-  try {
-    const resp = await fetch(BAN_URL + "?" + new URLSearchParams({ q, limit: "5" }));
-    features = (await resp.json()).features || [];
-  } catch (e) {
-    return; // hors ligne / API indisponible : on laisse la saisie libre
-  }
-  if (!features.length || document.activeElement !== input) return;
+  const items = await fetchAddressSuggestions(q);
+  if (!items.length || document.activeElement !== input) return;
 
   const box = document.createElement("div");
   box.className = "addr-suggestions";
-  features.forEach((f) => {
+  items.forEach((it) => {
     const item = document.createElement("div");
     item.className = "addr-suggestion";
-    item.textContent = f.properties.label;
+    item.textContent = it.label;
     // mousedown plutôt que click : se déclenche avant le blur de l'input.
     item.addEventListener("mousedown", (e) => {
       e.preventDefault();
       const tr = input.closest("tr");
-      input.value = f.properties.name || f.properties.label;
+      input.value = it.name;
       const cityInput = tr && tr.querySelector('[name="stop_city[]"]');
-      if (cityInput) cityInput.value = f.properties.city || "";
+      if (cityInput) cityInput.value = it.city || "";
       closeSuggestions();
     });
     box.appendChild(item);
@@ -149,21 +193,72 @@ async function showAddressSuggestions(input) {
 }
 
 // ------------------------------------------------ estimation de durée
-async function estimateLeg(button) {
-  const form = document.getElementById("mission-form");
-  const tr = button.closest("tr");
-  const result = tr.querySelector(".estimate-result");
+// 2 boutons indépendants par ligne de trajet, chacun son fournisseur —
+// TomTom (côté serveur, clé jamais exposée) et Google Maps (côté
+// navigateur, via la clé Maps JavaScript API). Affichage seul dans les
+// deux cas : les heures saisies (leg_start_time/leg_end_time), donc
+// l'amplitude / la conduite / la pause du récap, ne sont jamais modifiées
+// par un clic sur « Estimer ».
+const DEPOT_FOLD = "depot kent";
+
+function foldPlace(text) {
+  return (text || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+// Même règle que routing.normalize_place() côté serveur : « Dépôt KENT »
+// n'est pas une adresse géocodable, on lui substitue celle de l'entreprise.
+function normalizePlaceForGoogle(text) {
+  const place = (text || "").trim();
+  if (foldPlace(place) === DEPOT_FOLD) {
+    const form = document.getElementById("mission-form");
+    return (form && form.dataset.depotAddress) || place;
+  }
+  return place;
+}
+
+function splitLegLabel(tr, result) {
   const label = tr.querySelector('[name="leg_label[]"]').value;
   const parts = label.split(ARROW);
-  if (parts.length !== 2) {
+  if (parts.length !== 2 || !parts[0].trim() || !parts[1].trim()) {
     result.textContent = "Libellé attendu : « départ → arrivée »";
     result.className = "estimate-result estimate-result--error";
-    return;
+    return null;
   }
+  return [parts[0].trim(), parts[1].trim()];
+}
+
+function formatDurationJs(seconds) {
+  const minutes = Math.round(seconds / 60);
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  return h ? `${h} h ${String(m).padStart(2, "0")}` : `${m} min`;
+}
+
+function addMinutesToHHMM(startMinutes, deltaSeconds) {
+  const total = startMinutes + Math.round(deltaSeconds / 60);
+  const norm = ((total % 1440) + 1440) % 1440;
+  return `${String(Math.floor(norm / 60)).padStart(2, "0")}:${String(norm % 60).padStart(2, "0")}`;
+}
+
+// Date de départ pour le calcul de trafic : celle saisie si elle est dans
+// le futur (mission_date + start_time, ou end_time à défaut), sinon "now"
+// (trafic courant) — même repli que _datetime_param() côté serveur.
+function computeDepartureDate(missionDate, time) {
+  const now = new Date();
+  const mins = parseHHMM(time);
+  if (!missionDate || mins == null) return { date: now, scheduled: false };
+  const d = new Date(missionDate + "T00:00:00");
+  d.setMinutes(d.getMinutes() + mins);
+  return d > now ? { date: d, scheduled: true } : { date: now, scheduled: false };
+}
+
+async function estimateLegTomtom(button, tr, result) {
+  const parts = splitLegLabel(tr, result);
+  if (!parts) return;
+  const form = document.getElementById("mission-form");
 
   const body = new FormData();
-  body.append("from", parts[0].trim());
-  body.append("to", parts[1].trim());
+  body.append("from", parts[0]);
+  body.append("to", parts[1]);
   body.append("start_time", tr.querySelector('[name="leg_start_time[]"]').value.trim());
   body.append("end_time", tr.querySelector('[name="leg_end_time[]"]').value.trim());
   const missionDate = document.querySelector('[name="mission_date"]');
@@ -180,8 +275,7 @@ async function estimateLeg(button) {
       result.className = "estimate-result estimate-result--error";
       return;
     }
-    // Affichage seul : les heures saisies ne sont jamais modifiées.
-    let text = `≈ ${data.duration}`;
+    let text = `TomTom ≈ ${data.duration}`;
     if (data.arrival_time) text += ` (arrivée estimée ${data.arrival_time})`;
     else if (data.departure_time) text += ` (départ estimé ${data.departure_time})`;
     text += ` · ${data.km} km`;
@@ -196,6 +290,72 @@ async function estimateLeg(button) {
     button.disabled = false;
     scheduleLegsSummaryUpdate();
   }
+}
+
+function estimateLegGoogle(button, tr, result) {
+  const parts = splitLegLabel(tr, result);
+  if (!parts) return;
+  if (!googleAvailable() || !google.maps.DistanceMatrixService) {
+    result.textContent = "Clé Google Maps absente : renseignez GOOGLE_MAPS_API_KEY.";
+    result.className = "estimate-result estimate-result--error";
+    return;
+  }
+
+  const origin = normalizePlaceForGoogle(parts[0]);
+  const destination = normalizePlaceForGoogle(parts[1]);
+  const startTime = tr.querySelector('[name="leg_start_time[]"]').value.trim();
+  const endTime = tr.querySelector('[name="leg_end_time[]"]').value.trim();
+  const missionDateInput = document.querySelector('[name="mission_date"]');
+  const missionDate = missionDateInput ? missionDateInput.value : "";
+  const { date: departure, scheduled } = computeDepartureDate(missionDate, startTime || endTime);
+
+  result.className = "estimate-result";
+  result.textContent = "Calcul…";
+  button.disabled = true;
+  new google.maps.DistanceMatrixService().getDistanceMatrix(
+    {
+      origins: [origin],
+      destinations: [destination],
+      travelMode: google.maps.TravelMode.DRIVING,
+      drivingOptions: { departureTime: departure, trafficModel: google.maps.TrafficModel.BEST_GUESS },
+      unitSystem: google.maps.UnitSystem.METRIC,
+    },
+    (response, status) => {
+      button.disabled = false;
+      if (status !== "OK") {
+        result.textContent = "Estimation indisponible (" + status + ").";
+        result.className = "estimate-result estimate-result--error";
+        return;
+      }
+      const el = response.rows[0] && response.rows[0].elements[0];
+      if (!el || el.status !== "OK") {
+        result.textContent = "Itinéraire introuvable.";
+        result.className = "estimate-result estimate-result--error";
+        return;
+      }
+      const durationInfo = el.duration_in_traffic || el.duration;
+      const km = Math.round(el.distance.value / 1000);
+      const startMinutes = parseHHMM(startTime), endMinutes = parseHHMM(endTime);
+      let text = `Maps ≈ ${formatDurationJs(durationInfo.value)}`;
+      if (startMinutes != null) text += ` (arrivée estimée ${addMinutesToHHMM(startMinutes, durationInfo.value)})`;
+      else if (endMinutes != null) text += ` (départ estimé ${addMinutesToHHMM(endMinutes, -durationInfo.value)})`;
+      text += ` · ${km} km`;
+      if (el.duration_in_traffic) {
+        const trafficMin = Math.round((el.duration_in_traffic.value - el.duration.value) / 60);
+        if (trafficMin > 0) text += ` (dont ${trafficMin} min de trafic)`;
+      }
+      if (!scheduled) text += " · trafic actuel";
+      result.textContent = text;
+      scheduleLegsSummaryUpdate();
+    }
+  );
+}
+
+function estimateLeg(button) {
+  const tr = button.closest("tr");
+  const result = tr.querySelector(".estimate-result");
+  if (button.dataset.provider === "google") estimateLegGoogle(button, tr, result);
+  else estimateLegTomtom(button, tr, result);
 }
 
 // -------------------------------------------- récap Trajets (km / temps)

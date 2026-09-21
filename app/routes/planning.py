@@ -96,6 +96,7 @@ def calendar_view():
         events_by_day=events_by_day,
         week_days=week_days,
         monday=monday.isoformat(),
+        week_number=monday.isocalendar()[1],
         prev_date=(monday - timedelta(days=7)).isoformat(),
         next_date=(monday + timedelta(days=7)).isoformat(),
         today_date=date.today().isoformat(),

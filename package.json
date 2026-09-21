@@ -1,8 +1,8 @@
 {
-  "name": "ombc-kent",
+  "name": "planning-kent",
   "version": "2.0.0",
   "private": true,
-  "description": "Fonction serverless de rendu HTML -> PDF (Chrome headless) pour l'app Flask OM+BC.",
+  "description": "Fonction serverless de rendu HTML -> PDF (Chrome headless) pour l'app Flask Planning KENT.",
   "engines": {
     "node": "22.x"
   },

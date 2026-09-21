@@ -7,7 +7,7 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from app import repo
-from app.config import COMPANY, RANDSTAD_EMAIL
+from app.config import COMPANY, RANDSTAD_EMAIL, GOOGLE_MAPS_API_KEY, ADDRESS_SEARCH_PROVIDER
 from app.pdf_service import (
     generate_mission_pdf, extract_pdf_pages, PdfGenerationError,
     POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC,
@@ -134,6 +134,11 @@ def _form_context(mission=None):
         "om_templates": repo.list_templates("OM"),
         "bc_templates": repo.list_templates("BC"),
         "mission": mission,
+        "google_maps_api_key": GOOGLE_MAPS_API_KEY,
+        # "google" sans clé n'a pas de sens côté navigateur : on retombe sur
+        # "gouv" (BAN) plutôt que de casser silencieusement l'autocomplétion.
+        "address_search_provider": ADDRESS_SEARCH_PROVIDER if GOOGLE_MAPS_API_KEY else "gouv",
+        "depot_address": f"{COMPANY['address']}, {COMPANY['postal_code']} {COMPANY['city']}",
     }
 
 
@@ -411,7 +416,7 @@ def email_mission(mission_id):
             return redirect(url_for("missions.email_mission", mission_id=mission_id))
         repo.set_mission_status(mission_id, "envoyé")
         repo.mark_sent_driver(mission_id)
-        flash(f"OM + BC envoyés à {', '.join(to_list)}.", "success")
+        flash(f"Ordre de mission envoyé à {', '.join(to_list)}.", "success")
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
 
     default_subject, default_body = _driver_email_defaults(mission)
@@ -424,13 +429,18 @@ def email_mission(mission_id):
 def _driver_email_defaults(mission):
     """Objet / corps de l'email envoyé au chauffeur d'une mission. Partagé
     entre l'envoi unitaire (page de rédaction) et l'envoi groupé « chaque
-    mission à son chauffeur »."""
+    mission à son chauffeur ». Objet : « Ordre de mission du [jour]
+    [dd/mm/YYYY] : [prise de service] - [fin de service] ([nom de
+    mission]) »."""
     label = fmt_date_full(mission["mission_date"])
-    subject = f"Ordre de mission du {label}"
+    start, end = service_time_range(mission.get("legs") or [])
+    name = mission.get("mission_name") or mission["reference"]
+    detail = f" : {fmt_time(start)} - {fmt_time(end)} ({name})" if start and end else f" ({name})"
+    subject = f"Ordre de mission du {label}{detail}"
     body = (
         f"Bonjour {mission['driver']['first_name']},\n\n"
         f"Veuillez trouver ci-joint votre ordre de mission et le billet collectif "
-        f"pour le {label}.\n\n"
+        f"pour le {label}{detail}.\n\n"
         f"Cordialement,\n{COMPANY['name']}"
     )
     return subject, body
@@ -480,7 +490,7 @@ def _bulk_email_defaults(missions):
 @bp.route("/envoi-groupe", methods=["GET", "POST"])
 def bulk_email():
     """Sélection multiple sur la liste des missions -> bouton "Envoyer à
-    Randstad" : un email avec un PDF (OM+BC) par mission en pièce jointe."""
+    Randstad" : un email avec un PDF (Ordre de Mission) par mission en pièce jointe."""
     ids = (request.form if request.method == "POST" else request.args).getlist("mission_ids", type=int)
     missions = [m for m in (repo.get_mission(i) for i in ids) if m]
     if not missions:

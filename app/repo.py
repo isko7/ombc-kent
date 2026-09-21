@@ -10,6 +10,7 @@ import re
 from datetime import datetime, date
 from app.config import PINNED_CLIENT_NAME
 from app.db import get_db
+from app.utils import legs_time_summary
 
 
 def row_to_dict(row):
@@ -352,20 +353,33 @@ def list_attachment_contents(mission_id):
         )
 
 
+def _legs_summary_fields(legs):
+    """(amplitude, conduite, pause) en minutes à partir des trajets, pour
+    les colonnes missions.*_minutes — mêmes règles que legs_time_summary()
+    (prise/fin de service -> amplitude ; véhicule réel affecté -> conduite).
+    (None, None, None) si pas assez d'horaires pour calculer."""
+    summary = legs_time_summary(legs)
+    if not summary:
+        return None, None, None
+    return summary["amplitude"], summary["driving"], summary["pause"]
+
+
 def create_mission(data):
+    amplitude, driving, pause = _legs_summary_fields(data.get("legs") or [])
     with get_db() as db:
         reference = _next_reference(db, data["mission_date"])
         cur = db.execute(
             """INSERT INTO missions (reference, mission_name, shuttle_label, driver_id,
                mission_date, motif, remarks, client_id, emission_date, price, status,
-               om_template_id, bc_template_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               om_template_id, bc_template_id, amplitude_minutes, driving_minutes, pause_minutes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (reference, data.get("mission_name") or None,
              data.get("shuttle_label") or None, data["driver_id"], data["mission_date"],
              data.get("motif") or "Transport Occasionnel",
              data.get("remarks"), data.get("client_id") or None, data.get("emission_date"),
              data.get("price"), data.get("status") or "brouillon",
-             data.get("om_template_id") or None, data.get("bc_template_id") or None),
+             data.get("om_template_id") or None, data.get("bc_template_id") or None,
+             amplitude, driving, pause),
         )
         mission_id = cur.lastrowid
         _replace_legs(db, mission_id, data.get("legs") or [])
@@ -470,11 +484,13 @@ def create_return_mission(mission_id):
 
 
 def update_mission(mission_id, data):
+    amplitude, driving, pause = _legs_summary_fields(data.get("legs") or [])
     with get_db() as db:
         db.execute(
             """UPDATE missions SET driver_id=?, mission_date=?, mission_name=?,
                shuttle_label=?, motif=?, remarks=?,
                client_id=?, emission_date=?, price=?, status=?, om_template_id=?, bc_template_id=?,
+               amplitude_minutes=?, driving_minutes=?, pause_minutes=?,
                updated_at=? WHERE id=?""",
             (data["driver_id"], data["mission_date"], data.get("mission_name") or None,
              data.get("shuttle_label") or None,
@@ -482,6 +498,7 @@ def update_mission(mission_id, data):
              data.get("remarks"), data.get("client_id") or None, data.get("emission_date"),
              data.get("price"), data.get("status") or "brouillon",
              data.get("om_template_id") or None, data.get("bc_template_id") or None,
+             amplitude, driving, pause,
              now_iso(), mission_id),
         )
         _replace_legs(db, mission_id, data.get("legs") or [])
