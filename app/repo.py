@@ -597,3 +597,22 @@ def list_email_log(mission_id):
                 "SELECT * FROM email_log WHERE mission_id = ? ORDER BY sent_at DESC", (mission_id,)
             ).fetchall()
         )
+
+
+# -------------------------------------------------------------- réglages
+# Petite table clé/valeur pour les réglages modifiables depuis l'écran
+# Réglages (ex. fournisseur de recherche d'adresse), par opposition aux
+# réglages fixés en .env (clés d'API, config serveur).
+def get_setting(key, default=None):
+    with get_db() as db:
+        row = db.execute("SELECT setting_value FROM app_settings WHERE setting_key = ?", (key,)).fetchone()
+        return row["setting_value"] if row else default
+
+
+def set_setting(key, value):
+    with get_db() as db:
+        db.execute(
+            """INSERT INTO app_settings (setting_key, setting_value) VALUES (?, ?)
+               ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP""",
+            (key, value),
+        )

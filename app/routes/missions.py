@@ -7,13 +7,14 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from app import repo
-from app.config import COMPANY, RANDSTAD_EMAIL, GOOGLE_MAPS_API_KEY, ADDRESS_SEARCH_PROVIDER
+from app.config import COMPANY, RANDSTAD_EMAIL, GOOGLE_MAPS_API_KEY
 from app.pdf_service import (
     generate_mission_pdf, extract_pdf_pages, PdfGenerationError,
     POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC,
 )
 from app.email_service import send_mission_email, send_bulk_email, EmailError
 from app.routing import estimate_route, format_duration, add_minutes, RoutingError
+from app.routes.settings import get_address_search_provider
 from app.utils import (
     fmt_date_full, fmt_date_long, fmt_date_short, fmt_time, legs_time_summary,
     normalize_time, service_time_range, shuttle_number,
@@ -135,9 +136,7 @@ def _form_context(mission=None):
         "bc_templates": repo.list_templates("BC"),
         "mission": mission,
         "google_maps_api_key": GOOGLE_MAPS_API_KEY,
-        # "google" sans clé n'a pas de sens côté navigateur : on retombe sur
-        # "gouv" (BAN) plutôt que de casser silencieusement l'autocomplétion.
-        "address_search_provider": ADDRESS_SEARCH_PROVIDER if GOOGLE_MAPS_API_KEY else "gouv",
+        "address_search_provider": get_address_search_provider(),
         "depot_address": f"{COMPANY['address']}, {COMPANY['postal_code']} {COMPANY['city']}",
     }
 
@@ -174,6 +173,8 @@ def list_missions_view():
     repo.attach_legs(missions)
     for m in missions:
         m["service_start"], m["service_end"] = service_time_range(m["legs"])
+        summary = legs_time_summary(m["legs"])
+        m["amplitude_minutes"] = summary["amplitude"] if summary else None
     return render_template(
         "missions/list.html", missions=missions, drivers=repo.list_drivers(), tab=tab,
         total=total, page=page, total_pages=total_pages,

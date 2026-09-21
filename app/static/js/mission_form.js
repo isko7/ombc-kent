@@ -105,8 +105,8 @@ function syncRelayRemarks(tr, text, prev) {
 }
 
 // ------------------------------------------- autocomplétion d'adresse
-// Deux fournisseurs, choisis par le switch global ADDRESS_SEARCH_PROVIDER
-// (.env), lu depuis #mission-form[data-address-provider] :
+// Deux fournisseurs, choisis par le réglage global de l'écran Réglages
+// (/reglages), lu depuis #mission-form[data-address-provider] :
 // - "google" (par défaut) : Google Places, via la clé Maps JavaScript API
 //   chargée en page (voir mission_form.html). Se replie automatiquement
 //   sur la BAN si le script Google n'est pas chargé (clé absente).
@@ -379,23 +379,32 @@ function formatHoursMinutes(minutes) {
   return `${h}h${String(m).padStart(2, "0")}`;
 }
 
+// Ecart entre 2 heures-du-jour en minutes, modulo 24h : gère les missions de
+// nuit qui passent minuit (ex. 19h00 -> 02h30 = 7h30, pas -16h30). Même
+// règle que legs_time_summary() côté serveur (utils.py).
+function minutesBetween(startMinutes, endMinutes) {
+  return ((endMinutes - startMinutes) % 1440 + 1440) % 1440;
+}
+
 function updateLegsTimeSummary() {
-  let minStart = null, maxEnd = null, drivingMinutes = 0;
+  // Amplitude = 1re heure de début valide -> dernière heure de fin valide,
+  // dans l'ordre des lignes (comme service_time_range() côté serveur) —
+  // pas un min/max numérique, qui se trompe dès qu'une mission passe minuit.
+  let firstStart = null, lastEnd = null, drivingMinutes = 0;
   document.querySelectorAll("#legs-body tr").forEach((tr) => {
     const start = parseHHMM(tr.querySelector('[name="leg_start_time[]"]').value);
     const end = parseHHMM(tr.querySelector('[name="leg_end_time[]"]').value);
-    [start, end].forEach((t) => {
-      if (t == null) return;
-      if (minStart == null || t < minStart) minStart = t;
-      if (maxEnd == null || t > maxEnd) maxEnd = t;
-    });
+    if (start != null && end != null) {
+      if (firstStart == null) firstStart = start;
+      lastEnd = end;
+    }
     const vSel = tr.querySelector('[name="leg_vehicle_id[]"]');
     const isDriving = vSel && vSel.value && vSel.value !== "relais";
-    if (isDriving && start != null && end != null && end >= start) {
-      drivingMinutes += end - start;
+    if (isDriving && start != null && end != null) {
+      drivingMinutes += minutesBetween(start, end);
     }
   });
-  const amplitude = (minStart != null && maxEnd != null && maxEnd >= minStart) ? (maxEnd - minStart) : null;
+  const amplitude = (firstStart != null && lastEnd != null) ? minutesBetween(firstStart, lastEnd) : null;
   // Pause = amplitude - conduite : le reste du temps de service qui n'est
   // pas passé à conduire (attente, relais...), pas une saisie séparée.
   const pause = amplitude != null ? Math.max(0, amplitude - drivingMinutes) : null;

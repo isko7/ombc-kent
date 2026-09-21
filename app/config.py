@@ -169,17 +169,9 @@ TOMTOM_API_KEY = env("TOMTOM_API_KEY", "")
 # le fonctionnement normal d'une clé « Maps JavaScript API » chez Google :
 # on la restreint par « référents HTTP » dans la console Google Cloud,
 # plutôt que de la garder secrète côté serveur). Alimente à la fois
-# l'autocomplétion d'adresse (si ADDRESS_SEARCH_PROVIDER=google) et le
-# bouton « Estimer avec Maps » des lignes de trajet (toujours proposé,
-# indépendamment de ADDRESS_SEARCH_PROVIDER). Accepte aussi
+# l'autocomplétion d'adresse (si le réglage « Recherche d'adresse », écran
+# Réglages, est sur Google) et le bouton « Estimer avec Maps » des lignes de
+# trajet (toujours proposé, indépendamment de ce réglage). Accepte aussi
 # NEXT_PUBLIC_GOOGLE_MAPS_API_KEY comme alias, pour reprendre une clé déjà
 # nommée ainsi ailleurs.
 GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY") or env("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY", "")
-
-# Fournisseur utilisé par l'autocomplétion d'adresse du formulaire de
-# mission (arrêts du Billet Collectif) : "google" (Places, par défaut) ou
-# "gouv" (Base Adresse Nationale, gratuite et sans clé). Se replie
-# automatiquement sur "gouv" si GOOGLE_MAPS_API_KEY est absente. N'affecte
-# pas les boutons « Estimer » : TomTom et Maps restent tous les deux
-# disponibles quel que soit ce réglage.
-ADDRESS_SEARCH_PROVIDER = env("ADDRESS_SEARCH_PROVIDER", "google")

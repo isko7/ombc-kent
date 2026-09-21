@@ -86,20 +86,20 @@ def legs_time_summary(legs):
     - pause     : amplitude - conduite, c'est-à-dire le reste du temps de
       service qui n'est pas passé à conduire (attente, relais...) — ce
       n'est pas une saisie séparée, juste le complément.
-    None si pas assez d'horaires pour calculer l'amplitude."""
+    None si pas assez d'horaires pour calculer l'amplitude. Le modulo 1440
+    (minutes/jour) gère les missions de nuit qui passent minuit (ex. prise de
+    service 19h00, fin de service 02h30 -> 7h30 d'amplitude, pas -16h30)."""
     start, end = service_time_range(legs)
     if start is None:
         return None
-    amplitude = _to_minutes(end) - _to_minutes(start)
+    amplitude = (_to_minutes(end) - _to_minutes(start)) % 1440
     driving = 0
     for leg in legs or []:
         if leg.get("is_relay") or leg.get("is_checkpoint") or not leg.get("vehicle_id"):
             continue
         s, e = normalize_time(leg.get("start_time")), normalize_time(leg.get("end_time"))
         if is_valid_time(s) and is_valid_time(e):
-            duration = _to_minutes(e) - _to_minutes(s)
-            if duration > 0:
-                driving += duration
+            driving += (_to_minutes(e) - _to_minutes(s)) % 1440
     return {"amplitude": amplitude, "driving": driving, "pause": max(0, amplitude - driving)}
 
 

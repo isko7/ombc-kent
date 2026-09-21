@@ -74,7 +74,7 @@
       <thead>
         <tr>
           <th style="width:24px;"><input type="checkbox" id="select-all"></th>
-          <th>Nom</th><th>Date</th><th>Prise de service</th><th>Fin de service</th>
+          <th>Nom</th><th>Date</th><th>Prise de service</th><th>Fin de service</th><th>Amplitude</th>
           <th>Chauffeur</th><th>Client</th><th>Statut</th><th></th>
         </tr>
       </thead>
@@ -86,6 +86,7 @@
           <td>{{ m.mission_date | fmt_date_long }} <span class="pill-note">{{ m.mission_date | day_label }}</span></td>
           <td>{{ (m.service_start | fmt_time) if m.service_start else '—' }}</td>
           <td>{{ (m.service_end | fmt_time) if m.service_end else '—' }}</td>
+          <td>{{ m.amplitude_minutes | fmt_hours_minutes }}</td>
           <td>{{ m.driver_last_name }} {{ m.driver_first_name }}</td>
           <td>{{ m.client_name or '—' }}</td>
           <td>

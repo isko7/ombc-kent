@@ -11,7 +11,7 @@ from flask import Blueprint, render_template, request, url_for, abort, Response
 from app import repo
 from app.config import CALENDAR_FEED_TOKEN
 from app.ical_service import build_ics, local_to_utc
-from app.utils import driver_color, service_time_range
+from app.utils import driver_color, fmt_hours_minutes, legs_time_summary, service_time_range
 
 bp = Blueprint("planning", __name__, url_prefix="/planning")
 
@@ -54,6 +54,8 @@ def _build_event(mission, drivers_by_id):
         # Strictement < : à heures égales (trajet ponctuel), on affiche une
         # durée minimale plutôt que d'étendre le bloc jusqu'à minuit.
         event["crosses_midnight"] = end_time < start_time
+        summary = legs_time_summary(legs)
+        event["amplitude"] = fmt_hours_minutes(summary["amplitude"]) if summary else None
     else:
         event["all_day"] = True
     return event

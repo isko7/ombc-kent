@@ -23,6 +23,7 @@ def create_app():
     from app.routes.planning import bp as planning_bp
     from app.routes.templates_admin import bp as templates_bp
     from app.routes.admin import bp as admin_bp
+    from app.routes.settings import bp as settings_bp
 
     app.register_blueprint(drivers_bp)
     app.register_blueprint(vehicles_bp)
@@ -31,6 +32,7 @@ def create_app():
     app.register_blueprint(planning_bp)
     app.register_blueprint(templates_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(settings_bp)
 
     @app.route("/")
     def index():

@@ -20,8 +20,10 @@
   }
 
   function timeLabel(ev) {
-    if (ev.crosses_midnight) return fmtTime(ev.start_time) + " → " + fmtTime(ev.end_time) + " (+1j)";
-    return fmtTime(ev.start_time) + "–" + fmtTime(ev.end_time);
+    var base = ev.crosses_midnight
+      ? fmtTime(ev.start_time) + " → " + fmtTime(ev.end_time) + " (+1j)"
+      : fmtTime(ev.start_time) + "–" + fmtTime(ev.end_time);
+    return ev.amplitude ? base + " (" + ev.amplitude + ")" : base;
   }
 
   // Empile les missions qui se chevauchent en colonnes côte à côte (façon
