@@ -25,7 +25,9 @@ serveur injoignable (mauvais host, pare-feu, etc.) peut faire attendre
 la requête indéfiniment plutôt que d'échouer proprement.
 """
 import base64
+import html
 import json
+import re
 import smtplib
 import urllib.error
 import urllib.request
@@ -43,9 +45,27 @@ GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 # il faudrait un upload session (non implémenté ici, cas rare pour des Ordres de Mission).
 GRAPH_MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 
+# Ligne "Itinéraire : <url>" ajoutée par _driver_email_defaults() (missions.py)
+# quand le chauffeur a coché "Envoyer l'itinéraire" : dans la version HTML de
+# l'email, on l'affiche comme un lien cliquable ("Itinéraire") plutôt que
+# l'URL brute — la version texte brut (fallback) garde elle l'URL en clair.
+_ITINERARY_LINE_RE = re.compile(r"^Itin[ée]raire\s*:\s*(\S+)$")
+
 
 class EmailError(Exception):
     pass
+
+
+def _body_to_html(body):
+    lines = []
+    for line in body.split("\n"):
+        m = _ITINERARY_LINE_RE.match(line.strip())
+        if m:
+            url = html.escape(m.group(1), quote=True)
+            lines.append(f'Itinéraire : <a href="{url}">Itinéraire</a>')
+        else:
+            lines.append(html.escape(line))
+    return "<html><body>" + "<br>\n".join(lines) + "</body></html>"
 
 
 # --------------------------------------------------------- mode "basic"
@@ -67,6 +87,7 @@ def _build_message(to_addresses, cc_addresses, subject, body, attachments):
     if cc_addresses:
         msg["Cc"] = ", ".join(cc_addresses)
     msg.set_content(body)
+    msg.add_alternative(_body_to_html(body), subtype="html")
     for pdf_bytes, pdf_filename in attachments:
         msg.add_attachment(pdf_bytes, maintype="application", subtype="pdf", filename=pdf_filename)
     return msg
@@ -94,9 +115,10 @@ def _get_graph_access_token():
 
 def _send_via_graph(to_addresses, cc_addresses, subject, body, attachments):
     token = _get_graph_access_token()
+    html_body = _body_to_html(body)
 
     graph_attachments = []
-    total_bytes = len(body.encode("utf-8"))
+    total_bytes = len(html_body.encode("utf-8"))
     for pdf_bytes, filename in attachments:
         total_bytes += len(pdf_bytes)
         graph_attachments.append({
@@ -114,7 +136,7 @@ def _send_via_graph(to_addresses, cc_addresses, subject, body, attachments):
     payload = {
         "message": {
             "subject": subject,
-            "body": {"contentType": "Text", "content": body},
+            "body": {"contentType": "HTML", "content": html_body},
             "toRecipients": [{"emailAddress": {"address": a}} for a in to_addresses],
             "attachments": graph_attachments,
         },
