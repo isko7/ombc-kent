@@ -1,9 +1,11 @@
 """
-Écran Réglages : réglages modifiables depuis l'interface (par opposition à
-ceux figés en .env, comme les clés d'API). Pour l'instant, un seul réglage :
-le fournisseur de recherche d'adresse du formulaire de mission.
+Réglage global : fournisseur de recherche d'adresse (Google Maps / Base
+Adresse Nationale). Pas d'écran dédié : le dropdown vit directement dans le
+formulaire Ordre de mission (juste au-dessus des Arrêts), sauvegardé en
+AJAX. La table app_settings reste la source de vérité, lue via
+get_address_search_provider().
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, request, jsonify
 
 from app import repo
 from app.config import GOOGLE_MAPS_API_KEY
@@ -22,18 +24,12 @@ def get_address_search_provider():
     return value if GOOGLE_MAPS_API_KEY else "gouv"
 
 
-@bp.route("/", methods=["GET", "POST"])
-def settings_view():
-    if request.method == "POST":
-        provider = request.form.get("address_search_provider")
-        if provider in ("google", "gouv"):
-            repo.set_setting(ADDRESS_PROVIDER_KEY, provider)
-            flash("Réglages enregistrés.", "success")
-        return redirect(url_for("settings.settings_view"))
-
-    saved_provider = repo.get_setting(ADDRESS_PROVIDER_KEY, ADDRESS_PROVIDER_DEFAULT)
-    return render_template(
-        "settings/form.html",
-        address_search_provider=saved_provider,
-        google_maps_configured=bool(GOOGLE_MAPS_API_KEY),
-    )
+@bp.route("/recherche-adresse", methods=["POST"])
+def set_address_search_provider():
+    """Appelé en fetch depuis le dropdown du formulaire de mission. Répond
+    en JSON : le réglage est global, pas lié à une mission en particulier."""
+    provider = request.form.get("address_search_provider")
+    if provider not in ("google", "gouv"):
+        return jsonify({"ok": False, "error": "Valeur invalide."}), 400
+    repo.set_setting(ADDRESS_PROVIDER_KEY, provider)
+    return jsonify({"ok": True, "address_search_provider": provider})

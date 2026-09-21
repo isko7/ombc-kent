@@ -127,9 +127,9 @@ def _render_via_wkhtmltopdf(html: str) -> bytes:
 def _pdf_render_base_url() -> str:
     if PDF_RENDER_URL:
         return PDF_RENDER_URL.rstrip("/")
-    # Le domaine de production (ombc-kent.vercel.app) n'est pas derrière la
-    # « Deployment Protection », contrairement à VERCEL_URL (URL de
-    # déploiement, protégée par SSO). On le préfère donc pour l'appel interne.
+    # Le domaine de production (planning.kent-transports.com) n'est pas
+    # derrière la « Deployment Protection », contrairement à VERCEL_URL (URL
+    # de déploiement, protégée par SSO). On le préfère donc pour l'appel interne.
     prod = os.environ.get("VERCEL_PROJECT_PRODUCTION_URL")
     if prod:
         return f"https://{prod}"

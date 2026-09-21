@@ -7,6 +7,7 @@
 
   <form method="post" id="mission-form" data-estimate-url="{{ url_for('missions.estimate_leg_duration') }}"
         data-address-provider="{{ address_search_provider }}"
+        data-address-provider-url="{{ url_for('settings.set_address_search_provider') }}"
         data-depot-address="{{ depot_address }}">
     <div class="card">
       <h2>Informations générales</h2>
@@ -94,6 +95,21 @@
           <button type="button" id="nc-cancel" class="btn btn--ghost btn--sm">Annuler</button>
           <span id="nc-msg" class="hint" style="align-self:center;"></span>
         </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Recherche d'adresse <span style="font-weight:400; text-transform:none; letter-spacing:0;">(réglage global, utilisé ci-dessous pour les arrêts)</span></h2>
+      <div class="field" style="max-width:320px;">
+        <label>Fournisseur</label>
+        <select id="address-provider-select">
+          <option value="google" {{ 'selected' if address_search_provider == 'google' }}>Google Maps</option>
+          <option value="gouv" {{ 'selected' if address_search_provider == 'gouv' }}>Base Adresse Nationale (gouv.fr)</option>
+        </select>
+        <span id="address-provider-status" class="hint"></span>
+        {% if not google_maps_api_key %}
+        <div class="hint">Aucune clé Google Maps configurée : la Base Adresse Nationale est utilisée pour l'instant, quel que soit ce réglage.</div>
+        {% endif %}
       </div>
     </div>
 

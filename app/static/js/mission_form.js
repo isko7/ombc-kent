@@ -473,6 +473,39 @@ function scheduleLegsSummaryUpdate() {
   legsSummaryTimer = setTimeout(updateLegsKmTotal, 600);
 }
 
+// -------------------------------------- recherche d'adresse (dropdown)
+// Réglage global (table app_settings), sauvegardé en AJAX dès le
+// changement — pas besoin d'enregistrer toute la mission pour qu'il
+// prenne effet. Met aussi à jour data-address-provider immédiatement,
+// pour que l'autocomplétion des arrêts en tienne compte sans recharger.
+function initAddressProviderToggle() {
+  const select = document.getElementById("address-provider-select");
+  const status = document.getElementById("address-provider-status");
+  const form = document.getElementById("mission-form");
+  if (!select || !form) return;
+
+  select.addEventListener("change", async () => {
+    if (status) status.textContent = "Enregistrement…";
+    try {
+      const body = new FormData();
+      body.append("address_search_provider", select.value);
+      const resp = await fetch(form.dataset.addressProviderUrl, { method: "POST", body });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        if (status) status.textContent = data.error || "Échec de l'enregistrement.";
+        return;
+      }
+      form.dataset.addressProvider = data.address_search_provider;
+      if (status) {
+        status.textContent = "Enregistré ✓";
+        setTimeout(() => { status.textContent = ""; }, 2000);
+      }
+    } catch (e) {
+      if (status) status.textContent = "Échec de l'enregistrement : " + e.message;
+    }
+  });
+}
+
 // ------------------------------------------------ création de client
 // Crée un client sans quitter le formulaire de mission, puis l'ajoute au
 // menu déroulant et le sélectionne.
@@ -615,6 +648,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   initNewClient();
+  initAddressProviderToggle();
 
   // Init : afficher les sélecteurs de relais déjà actifs et mémoriser
   // leur texte pour la synchro des remarques.
