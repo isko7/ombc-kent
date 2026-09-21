@@ -35,6 +35,17 @@
           <label for="active" style="margin:0;">Chauffeur actif</label>
         </div>
       </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <div class="checkbox-field">
+          <input type="checkbox" name="send_itinerary" id="send_itinerary" {{ 'checked' if driver.send_itinerary }}>
+          <label for="send_itinerary" style="margin:0;">Envoyer l'itinéraire</label>
+        </div>
+        <div class="hint">
+          Ajoute un lien Google Maps (départ = position actuelle, arrivée = dépôt) à l'email d'envoi
+          de l'Ordre de mission, pour lancer la navigation d'un tap sur le téléphone.
+        </div>
+      </div>
     </div>
     <div class="field">
       <label>Couleur sur le planning</label>

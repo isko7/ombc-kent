@@ -34,6 +34,7 @@ SCHEMA_STATEMENTS = [
         license_number VARCHAR(60),
         active TINYINT(1) NOT NULL DEFAULT 1,
         color VARCHAR(9),
+        send_itinerary TINYINT(1) NOT NULL DEFAULT 0,
         notes TEXT,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -187,6 +188,7 @@ MIGRATIONS = [
     "ALTER TABLE missions ADD COLUMN amplitude_minutes INT NULL",
     "ALTER TABLE missions ADD COLUMN driving_minutes INT NULL",
     "ALTER TABLE missions ADD COLUMN pause_minutes INT NULL",
+    "ALTER TABLE drivers ADD COLUMN send_itinerary TINYINT(1) NOT NULL DEFAULT 0",
 ]
 
 

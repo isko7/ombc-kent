@@ -43,11 +43,12 @@ def get_driver(driver_id):
 def create_driver(data):
     with get_db() as db:
         cur = db.execute(
-            """INSERT INTO drivers (last_name, first_name, email, phone, license_number, active, color, notes)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO drivers (last_name, first_name, email, phone, license_number, active, color,
+               send_itinerary, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (data["last_name"], data["first_name"], data["email"], data.get("phone"),
              data.get("license_number"), 1 if data.get("active", True) else 0,
-             data.get("color") or None, data.get("notes")),
+             data.get("color") or None, 1 if data.get("send_itinerary") else 0, data.get("notes")),
         )
         return cur.lastrowid
 
@@ -56,10 +57,10 @@ def update_driver(driver_id, data):
     with get_db() as db:
         db.execute(
             """UPDATE drivers SET last_name=?, first_name=?, email=?, phone=?, license_number=?,
-               active=?, color=?, notes=?, updated_at=? WHERE id=?""",
+               active=?, color=?, send_itinerary=?, notes=?, updated_at=? WHERE id=?""",
             (data["last_name"], data["first_name"], data["email"], data.get("phone"),
              data.get("license_number"), 1 if data.get("active", True) else 0,
-             data.get("color") or None, data.get("notes"),
+             data.get("color") or None, 1 if data.get("send_itinerary") else 0, data.get("notes"),
              now_iso(), driver_id),
         )
 

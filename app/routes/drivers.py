@@ -20,6 +20,7 @@ def _form_to_data(form):
         "license_number": form.get("license_number", "").strip() or None,
         "active": form.get("active") == "on",
         "color": color if HEX_COLOR_RE.match(color) else None,
+        "send_itinerary": form.get("send_itinerary") == "on",
         "notes": form.get("notes", "").strip() or None,
     }
 

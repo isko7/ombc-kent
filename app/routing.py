@@ -162,3 +162,57 @@ def add_minutes(start_time, seconds):
         return None
     total = base.hour * 60 + base.minute + int(round(seconds / 60))
     return f"{(total // 60) % 24:02d}:{total % 60:02d}"
+
+
+# ------------------------------------------------ itinéraire chauffeur
+# Lien Google Maps (navigation turn-by-turn) joint à l'email d'envoi de
+# l'OM, si le chauffeur a coché « Envoyer l'itinéraire » sur sa fiche.
+ARROW = " → "
+
+
+def _driving_places(legs):
+    """Lieux traversés par les trajets de conduite réels d'une mission
+    (véhicule affecté, hors points de contrôle et relais — donc hors
+    pauses, qui n'ont pas de véhicule), dans l'ordre des lignes. Un trajet
+    « A → B » ajoute A (si différent du dernier lieu déjà ajouté) puis B."""
+    places = []
+    for leg in legs or []:
+        if leg.get("is_relay") or leg.get("is_checkpoint") or not leg.get("vehicle_id"):
+            continue
+        label = leg.get("label") or ""
+        if ARROW not in label:
+            continue
+        origin, _, destination = label.partition(ARROW)
+        origin, destination = origin.strip(), destination.strip()
+        if not origin or not destination:
+            continue
+        if not places or places[-1].lower() != origin.lower():
+            places.append(origin)
+        places.append(destination)
+    return places
+
+
+def build_driver_itinerary_url(legs):
+    """Lien https://www.google.com/maps/dir/... pour l'itinéraire complet
+    d'une mission (arrêts intermédiaires en waypoints), pensé pour être
+    ouvert depuis un téléphone :
+    - le dépôt de départ est omis de l'URL -> Google Maps utilise la
+      position actuelle du chauffeur comme origine ;
+    - le dépôt d'arrivée (et tout dépôt traversé en cours de route) est
+      remplacé par l'adresse réelle de l'entreprise, comme pour le
+      géocodage (voir normalize_place).
+    None si la mission n'a pas au moins 2 lieux de conduite exploitables."""
+    places = _driving_places(legs)
+    if len(places) < 2:
+        return None
+
+    origin = None if is_depot(places[0]) else normalize_place(places[0])
+    rest = [normalize_place(p) for p in places[1:]]
+
+    params = {"api": "1", "travelmode": "driving", "destination": rest[-1]}
+    if origin:
+        params["origin"] = origin
+    waypoints = rest[:-1]
+    if waypoints:
+        params["waypoints"] = "|".join(waypoints)
+    return "https://www.google.com/maps/dir/?" + urllib.parse.urlencode(params, safe="|")

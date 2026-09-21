@@ -13,7 +13,7 @@ from app.pdf_service import (
     POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC,
 )
 from app.email_service import send_mission_email, send_bulk_email, EmailError
-from app.routing import estimate_route, format_duration, add_minutes, RoutingError
+from app.routing import estimate_route, format_duration, add_minutes, build_driver_itinerary_url, RoutingError
 from app.routes.settings import get_address_search_provider
 from app.utils import (
     fmt_date_full, fmt_date_long, fmt_date_short, fmt_time, legs_time_summary,
@@ -442,8 +442,12 @@ def _driver_email_defaults(mission):
         f"Bonjour {mission['driver']['first_name']},\n\n"
         f"Veuillez trouver ci-joint votre ordre de mission et le billet collectif "
         f"pour le {label}{detail}.\n\n"
-        f"Cordialement,\n{COMPANY['name']}"
     )
+    if mission["driver"].get("send_itinerary"):
+        itinerary_url = build_driver_itinerary_url(mission.get("legs") or [])
+        if itinerary_url:
+            body += f"Itinéraire : {itinerary_url}\n\n"
+    body += f"Cordialement,\n{COMPANY['name']}"
     return subject, body
 
 
