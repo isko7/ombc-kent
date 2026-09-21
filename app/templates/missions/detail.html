@@ -30,7 +30,7 @@
 
   <div class="card">
     <div class="meta-grid">
-      <div class="item"><div class="label">Date</div><div class="value">{{ mission.mission_date | fmt_date_long }} ({{ mission.mission_date | day_label }})</div></div>
+      <div class="item"><div class="label">Date</div><div class="value"><div>{{ mission.mission_date | day_label }}</div><div>{{ mission.mission_date | fmt_date_long }}</div></div></div>
       <div class="item"><div class="label">Motif</div><div class="value">{{ mission.motif }}</div></div>
       <div class="item"><div class="label">Client</div><div class="value">{{ mission.client.name if mission.client else '—' }}</div></div>
       <div class="item"><div class="label">Prix</div><div class="value">{{ mission.price or '—' }}</div></div>
