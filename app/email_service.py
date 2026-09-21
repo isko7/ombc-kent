@@ -62,7 +62,7 @@ def _body_to_html(body):
         m = _ITINERARY_LINE_RE.match(line.strip())
         if m:
             url = html.escape(m.group(1), quote=True)
-            lines.append(f'Itinéraire : <a href="{url}">Itinéraire</a>')
+            lines.append(f'Itinéraire : <a href="{url}">Itinéraire Google Maps</a>')
         else:
             lines.append(html.escape(line))
     return "<html><body>" + "<br>\n".join(lines) + "</body></html>"
