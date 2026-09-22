@@ -9,6 +9,7 @@ from datetime import date, timedelta
 from flask import Blueprint, render_template, request, url_for, abort, Response
 
 from app import repo
+from app.auth import current_user, is_admin
 from app.config import CALENDAR_FEED_TOKEN
 from app.ical_service import build_ics, local_to_utc
 from app.utils import driver_color, fmt_hours_minutes, legs_time_summary, service_time_range
@@ -61,6 +62,55 @@ def _build_event(mission, drivers_by_id):
     return event
 
 
+MINUTES_PER_DAY = 24 * 60
+
+
+def _to_minutes(hhmm):
+    h, m = hhmm.split(":")
+    return int(h) * 60 + int(m)
+
+
+def _split_across_days(event):
+    """Découpe un événement en un segment par jour d'affichage.
+
+    Les trajets n'ont qu'une heure, pas de date : une mission dont l'heure
+    de fin est antérieure à l'heure de début se termine le lendemain (c'est
+    la règle de `crosses_midnight`). Elle doit alors occuper deux cases du
+    planning — de son début à minuit le premier jour, de minuit à sa fin le
+    second — comme le fait n'importe quel agenda.
+
+    Les deux segments gardent les heures réelles de la mission dans
+    `start_time` / `end_time` (pour l'étiquette) ; `span_start_min` et
+    `span_end_min` donnent la portion à dessiner *dans la journée du
+    segment*, en minutes depuis minuit.
+    """
+    if event.get("all_day"):
+        return [event]
+
+    start_min = _to_minutes(event["start_time"])
+    end_min = _to_minutes(event["end_time"])
+
+    if not event.get("crosses_midnight"):
+        return [dict(event, span_start_min=start_min,
+                     span_end_min=max(end_min, start_min),
+                     continues_next_day=False, continued_from_previous_day=False)]
+
+    first = dict(event, span_start_min=start_min, span_end_min=MINUTES_PER_DAY,
+                 continues_next_day=True, continued_from_previous_day=False)
+    # Fin pile à minuit : la mission s'arrête avec le premier jour, inutile
+    # d'ajouter un segment de hauteur nulle le lendemain.
+    if end_min == 0:
+        return [dict(first, continues_next_day=False)]
+
+    next_day = (date.fromisoformat(event["date"]) + timedelta(days=1)).isoformat()
+    second = dict(event, date=next_day, span_start_min=0, span_end_min=end_min,
+                  continues_next_day=False, continued_from_previous_day=True,
+                  # L'amplitude est celle de la mission entière : l'afficher
+                  # sur les deux segments la ferait lire comme un doublon.
+                  amplitude=None)
+    return [first, second]
+
+
 @bp.route("/")
 def calendar_view():
     raw_date = request.args.get("date")
@@ -71,21 +121,37 @@ def calendar_view():
     monday = ref_date - timedelta(days=ref_date.weekday())
     week_days = [monday + timedelta(days=i) for i in range(7)]
     driver_id = request.args.get("driver_id", type=int)
+    # Un chauffeur non administrateur ne voit que son propre planning.
+    own_only = not is_admin()
+    if own_only:
+        user = current_user()
+        driver_id = user["id"] if user else None
 
+    # Un jour avant le lundi : une mission commencée le dimanche soir se
+    # termine le lundi matin, elle doit apparaître sur cette semaine-là.
     missions = repo.list_missions_for_planning(
-        monday.isoformat(), week_days[-1].isoformat(), driver_id=driver_id
+        (monday - timedelta(days=1)).isoformat(), week_days[-1].isoformat(),
+        driver_id=driver_id,
     )
     drivers = repo.list_drivers()
     drivers_by_id = {d["id"]: d for d in drivers}
-    events = [_build_event(m, drivers_by_id) for m in missions]
+
+    week_dates = {d.isoformat() for d in week_days}
+    events = []
+    for mission in missions:
+        for segment in _split_across_days(_build_event(mission, drivers_by_id)):
+            # Le jour d'avant n'est chargé que pour ses débordements : on
+            # ne garde que les segments qui tombent dans la semaine affichée.
+            if segment["date"] in week_dates:
+                events.append(segment)
 
     # Vue agenda (mobile, rendue côté serveur — pas de JS requis) : mêmes
     # événements, groupés par jour et triés (toute la journée en tête).
     events_by_day = {d.isoformat(): [] for d in week_days}
     for ev in events:
-        events_by_day.setdefault(ev["date"], []).append(ev)
+        events_by_day[ev["date"]].append(ev)
     for day_events in events_by_day.values():
-        day_events.sort(key=lambda e: ("" if e["all_day"] else e["start_time"]))
+        day_events.sort(key=lambda e: (0, 0) if e["all_day"] else (1, e["span_start_min"]))
 
     feed_url = (
         url_for("planning.calendar_feed", token=CALENDAR_FEED_TOKEN, _external=True)
@@ -103,6 +169,7 @@ def calendar_view():
         next_date=(monday + timedelta(days=7)).isoformat(),
         today_date=date.today().isoformat(),
         drivers=drivers,
+        own_only=own_only,
         filters={"driver_id": driver_id},
         feed_enabled=bool(CALENDAR_FEED_TOKEN),
         feed_url=feed_url,

@@ -19,20 +19,28 @@
     return hhmm.replace(":", "h");
   }
 
+  // L'amplitude est rendue à part de la plage horaire : dans un bloc étroit,
+  // les deux collées formaient un pavé illisible.
   function timeLabel(ev) {
-    var base = ev.crosses_midnight
-      ? fmtTime(ev.start_time) + " → " + fmtTime(ev.end_time) + " (+1j)"
-      : fmtTime(ev.start_time) + "–" + fmtTime(ev.end_time);
-    return ev.amplitude ? base + " (" + ev.amplitude + ")" : base;
+    if (ev.continued_from_previous_day) {
+      // 2e jour d'une mission de nuit : elle a commencé la veille.
+      return "veille " + fmtTime(ev.start_time) + " → " + fmtTime(ev.end_time);
+    }
+    if (ev.continues_next_day) {
+      return fmtTime(ev.start_time) + " → " + fmtTime(ev.end_time) + " (+1j)";
+    }
+    return fmtTime(ev.start_time) + "–" + fmtTime(ev.end_time);
   }
 
   // Empile les missions qui se chevauchent en colonnes côte à côte (façon
   // Google Calendar) : composantes connexes par intervalle, puis
   // coloration gloutonne des colonnes à l'intérieur de chaque composante.
   function layoutDay(dayEvents) {
+    // span_start_min / span_end_min = la portion de la mission qui tombe
+    // dans CE jour-là (le serveur a déjà découpé les missions de nuit).
     dayEvents.forEach(function (ev) {
-      ev._start = toMinutes(ev.start_time);
-      ev._end = ev.crosses_midnight ? 24 * 60 : Math.max(toMinutes(ev.end_time), ev._start + 15);
+      ev._start = ev.span_start_min;
+      ev._end = Math.max(ev.span_end_min, ev._start + 15);
     });
     dayEvents.sort(function (a, b) { return a._start - b._start; });
 
@@ -83,7 +91,9 @@
       (timed[date] || []).forEach(function (ev) {
         var a = document.createElement("a");
         a.href = ev.url;
-        a.className = "planning-event";
+        a.className = "planning-event"
+          + (ev.continues_next_day ? " planning-event--continues" : "")
+          + (ev.continued_from_previous_day ? " planning-event--continued" : "");
         a.title = ev.title + " — " + ev.driver_name + (ev.vehicle ? " — " + ev.vehicle : "");
         var top = (ev._start / 60) * HOUR_HEIGHT;
         var height = Math.max(18, ((ev._end - ev._start) / 60) * HOUR_HEIGHT);
@@ -95,6 +105,9 @@
         a.style.background = ev.color;
         a.innerHTML =
           '<div class="planning-event__time">' + escapeHtml(timeLabel(ev)) + "</div>" +
+          (ev.amplitude
+            ? '<div class="planning-event__amplitude">(' + escapeHtml(ev.amplitude) + ")</div>"
+            : "") +
           '<div class="planning-event__title">' + escapeHtml(ev.title) + "</div>" +
           '<div class="planning-event__meta">' + escapeHtml(ev.driver_name) + "</div>" +
           (ev.vehicle ? '<div class="planning-event__vehicle">' + escapeHtml(ev.vehicle) + "</div>" : "");
@@ -131,16 +144,9 @@
       todayCol.appendChild(line);
     }
 
-    // Défilement initial : un peu avant la première mission de la semaine
-    // (sinon la vue s'ouvre sur 00:00, hors champ pour la plupart des jours).
-    var scrollEl = document.getElementById("planning-grid-scroll");
-    if (scrollEl) {
-      var earliest = 6 * 60;
-      events.forEach(function (ev) {
-        if (!ev.all_day) earliest = Math.min(earliest, toMinutes(ev.start_time));
-      });
-      scrollEl.scrollTop = Math.max(0, (earliest / 60) * HOUR_HEIGHT - HOUR_HEIGHT);
-    }
+    // La grille n'a plus d'ascenseur propre (c'est la page qui défile) :
+    // rien à repositionner au chargement, et surtout pas la page elle-même,
+    // qui escamoterait l'en-tête et les filtres.
   }
 
   function copyText(text, button) {

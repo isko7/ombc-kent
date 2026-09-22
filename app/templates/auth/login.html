@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion — Transports KENT</title>
+  {% include "_favicons.html" %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-body">
+  <main class="login">
+    <div class="login__card">
+      <img class="login__logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="Transports KENT">
+      <h1 class="login__title">Planning KENT</h1>
+      <p class="login__sub">Connectez-vous pour accéder à l'application.</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="flash flash--{{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="post" action="{{ url_for('auth.login') }}">
+        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+        <div class="field">
+          <label for="username">Identifiant</label>
+          <input type="text" name="username" id="username" value="{{ username }}"
+                 autocomplete="username" autocapitalize="none" autofocus required>
+        </div>
+        <div class="field">
+          <label for="password">Mot de passe</label>
+          <input type="password" name="password" id="password"
+                 autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn--primary login__submit">Se connecter</button>
+      </form>
+
+      <p class="login__hint">
+        Vos identifiants vous sont remis par Transports KENT.
+      </p>
+    </div>
+  </main>
+</body>
+</html>
