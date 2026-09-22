@@ -1,11 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Planning{% endblock %}
+{# Le calendrier hebdomadaire a besoin de large : 7 colonnes horaires dans
+   1120 px donnent des créneaux illisibles. #}
+{% block container_class %}container--wide{% endblock %}
 {% block content %}
   <div class="page-head">
     <div>
       <h1>Planning</h1>
-      <div class="sub">Semaine {{ week_number }} — du {{ monday | fmt_week_range }}</div>
+      <div class="week-title">Semaine {{ week_number }} — du {{ monday | fmt_week_range }}</div>
     </div>
+    {% if is_admin %}
     <details class="share-panel">
       <summary class="btn btn--secondary">🔗 Partager le calendrier</summary>
       <div class="share-panel__body card">
@@ -48,9 +52,10 @@
         {% endif %}
       </div>
     </details>
+    {% endif %}
   </div>
 
-  {% if drivers %}
+  {% if drivers and not own_only %}
   <div class="planning-legend">
     {% for d in drivers if d.active %}
     <span class="planning-legend__item"><span class="dot" style="background:{{ d | driver_color }};"></span>{{ d.last_name }} {{ d.first_name }}</span>
@@ -58,7 +63,18 @@
   </div>
   {% endif %}
 
+  {# Navigation de semaine : une flèche de chaque côté de la barre de
+     filtres. Le calendrier reste ainsi sur toute la largeur. #}
+  <div class="week-nav-row">
+    <a class="week-nav week-nav--prev"
+       href="{{ url_for('planning.calendar_view', date=prev_date, driver_id=filters.driver_id) }}"
+       title="Semaine précédente" rel="prev">
+      <span class="week-nav__arrow" aria-hidden="true">←</span>
+      <span class="week-nav__label">Semaine<br>précédente</span>
+    </a>
+
   <form method="get" class="card filter-bar" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;">
+    {% if not own_only %}
     <div class="field" style="margin:0; min-width:180px;">
       <label>Chauffeur</label>
       <select name="driver_id">
@@ -68,17 +84,22 @@
         {% endfor %}
       </select>
     </div>
+    {% endif %}
     <div class="field" style="margin:0;">
       <label>Semaine du</label>
       <input type="date" name="date" value="{{ monday }}">
     </div>
     <button type="submit" class="btn btn--secondary">Afficher</button>
-    <div class="btn-row" style="margin:0 0 0 auto;">
-      <a href="{{ url_for('planning.calendar_view', date=prev_date, driver_id=filters.driver_id) }}" class="btn btn--ghost btn--sm">← Semaine préc.</a>
-      <a href="{{ url_for('planning.calendar_view', driver_id=filters.driver_id) }}" class="btn btn--ghost btn--sm">Aujourd'hui</a>
-      <a href="{{ url_for('planning.calendar_view', date=next_date, driver_id=filters.driver_id) }}" class="btn btn--ghost btn--sm">Semaine suiv. →</a>
-    </div>
+    <a href="{{ url_for('planning.calendar_view', driver_id=filters.driver_id) }}" class="btn btn--secondary">Aujourd'hui</a>
   </form>
+
+    <a class="week-nav week-nav--next"
+       href="{{ url_for('planning.calendar_view', date=next_date, driver_id=filters.driver_id) }}"
+       title="Semaine suivante" rel="next">
+      <span class="week-nav__arrow" aria-hidden="true">→</span>
+      <span class="week-nav__label">Semaine<br>suivante</span>
+    </a>
+  </div>
 
   {# --------------------------------------------------- vue grille (desktop) #}
   <div class="planning-grid" id="planning-grid" data-today="{{ today_date }}">
@@ -123,8 +144,19 @@
       {% set day_events = events_by_day[d.isoformat()] %}
       {% if day_events %}
         {% for ev in day_events %}
-        <a href="{{ ev.url }}" class="planning-chip" style="--chip-color: {{ ev.color }};">
-          <span class="planning-chip__time">{{ 'Toute la journée' if ev.all_day else ((ev.start_time | fmt_time) ~ '–' ~ (ev.end_time | fmt_time) ~ (' (' ~ ev.amplitude ~ ')' if ev.amplitude else '')) }}</span>
+        <a href="{{ ev.url }}" class="planning-chip{{ ' planning-chip--continued' if ev.continued_from_previous_day }}" style="--chip-color: {{ ev.color }};">
+          <span class="planning-chip__time">
+            {%- if ev.all_day -%}
+              Toute la journée
+            {%- elif ev.continued_from_previous_day -%}
+              veille {{ ev.start_time | fmt_time }} → {{ ev.end_time | fmt_time }}
+            {%- elif ev.continues_next_day -%}
+              {{ ev.start_time | fmt_time }} → {{ ev.end_time | fmt_time }} (+1j)
+            {%- else -%}
+              {{ ev.start_time | fmt_time }}–{{ ev.end_time | fmt_time }}
+            {%- endif -%}
+            {{- ' (' ~ ev.amplitude ~ ')' if ev.amplitude else '' -}}
+          </span>
           <span class="planning-chip__title">{{ ev.title }}</span>
           <span class="planning-chip__meta">{{ ev.driver_name }}</span>
           {% if ev.vehicle %}<span class="planning-chip__vehicle">{{ ev.vehicle }}</span>{% endif %}

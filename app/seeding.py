@@ -6,7 +6,8 @@ Amorçage de la base, réutilisable :
   joindre la base)
 """
 from app import repo
-from app.config import BASE_DIR
+from app.config import (BASE_DIR, BOOTSTRAP_EMAIL, BOOTSTRAP_FIRST_NAME,
+                        BOOTSTRAP_LAST_NAME, BOOTSTRAP_PASSWORD, BOOTSTRAP_USERNAME)
 
 TEMPLATES_DIR = BASE_DIR / "app" / "templates_data"
 
@@ -106,3 +107,62 @@ def seed_demo_data():
         ],
     })
     return [f"mission de démo #{mission_id} créée"]
+
+
+def ensure_login_access():
+    """Garantit qu'au moins un chauffeur ADMINISTRATEUR peut se connecter.
+
+    Sans cela, activer l'authentification sur une base existante fermerait
+    l'application à tout le monde (les seuls comptes sont des fiches
+    chauffeur, et aucune n'a d'identifiants au départ). Si personne n'a
+    l'accès, il est donné au chauffeur BOOTSTRAP_* — Ismail KILINC par
+    défaut — dont la fiche est créée si elle n'existe pas encore.
+
+    Le compte amorcé est administrateur (voir repo.grant_login) : il doit
+    pouvoir rouvrir l'accès aux autres.
+
+    Le critère est bien « un administrateur », pas « un compte » : quand la
+    colonne is_admin est ajoutée à une base existante, elle vaut 0 partout,
+    et sans cela plus personne ne pourrait administrer l'application. Un
+    compte déjà en place est alors simplement promu, son mot de passe est
+    conservé.
+
+    Ne fait rien dès qu'un administrateur utilisable existe. Appelée au démarrage
+    de l'application, par `python seed.py` et par /admin/init : c'est le
+    filet de sécurité si l'accès a été retiré à tout le monde directement
+    en base (l'écran Chauffeurs, lui, refuse de retirer le dernier accès).
+    Le mot de passe par défaut (BOOTSTRAP_PASSWORD) est à changer dès la
+    première connexion.
+    """
+    from app.auth import hash_password
+
+    if repo.count_admins():
+        return []
+
+    label = f"{BOOTSTRAP_FIRST_NAME} {BOOTSTRAP_LAST_NAME}"
+    driver = repo.find_driver_by_name(BOOTSTRAP_LAST_NAME, BOOTSTRAP_FIRST_NAME)
+
+    # Le compte existe déjà et fonctionne : on le promeut, sans réinitialiser
+    # un mot de passe que son propriétaire utilise peut-être déjà.
+    if driver and driver.get("can_login") and driver.get("active") and driver.get("password_hash"):
+        repo.set_admin(driver["id"], True)
+        return [f"droits d'administration donnés à {label} "
+                f"(compte existant « {driver['username']} », mot de passe inchangé)"]
+
+    created = False
+    if not driver:
+        driver_id = repo.create_driver({
+            "last_name": BOOTSTRAP_LAST_NAME, "first_name": BOOTSTRAP_FIRST_NAME,
+            "email": BOOTSTRAP_EMAIL, "active": True,
+        })
+        created = True
+    else:
+        driver_id = driver["id"]
+
+    username = BOOTSTRAP_USERNAME
+    if repo.username_taken(username, exclude_driver_id=driver_id):
+        username = f"{username}{driver_id}"
+    repo.grant_login(driver_id, username, hash_password(BOOTSTRAP_PASSWORD))
+
+    return [f"accès administrateur donné à {label} (identifiant « {username} »"
+            f"{', fiche créée' if created else ''})"]

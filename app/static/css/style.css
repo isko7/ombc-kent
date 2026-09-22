@@ -40,16 +40,43 @@ a:hover { text-decoration: underline; }
 }
 .topbar__brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.2px; }
 .topbar__brand img { height: 26px; display: block; }
-.topbar__nav { display: flex; gap: 4px; flex: 1; }
+.topbar__nav { display: flex; gap: 4px; flex: 1; min-width: 0; }
 .topbar__nav a {
   color: #d9d9de; padding: 10px 12px; border-radius: var(--radius);
   font-size: 14px; font-weight: 600;
 }
 .topbar__nav a:hover { color: #fff; text-decoration: none; background: rgba(255,255,255,0.08); }
 .topbar__nav a.active { color: #fff; background: var(--red); }
+.topbar__user { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; white-space: nowrap; }
+.topbar__user-name {
+  color: #d9d9de; font-size: 13px; font-weight: 700; max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.topbar__user-name:hover { color: #fff; text-decoration: none; }
+.topbar__badge {
+  display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 20px;
+  background: rgba(255,255,255,.16); font-size: 10px; letter-spacing: .3px;
+}
+.topbar__user form { margin: 0; }
+.topbar__logout {
+  background: transparent; color: #d9d9de; border: 1px solid rgba(255,255,255,0.25);
+  border-radius: var(--radius); padding: 6px 11px; font-size: 12.5px; font-weight: 700;
+  cursor: pointer; font-family: var(--font); line-height: 1.2;
+}
+.topbar__logout:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.topbar__icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0; border-radius: var(--radius);
+  background: transparent; color: #d9d9de; border: 1px solid rgba(255,255,255,0.25);
+  cursor: pointer; flex: none;
+}
+.topbar__icon-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
 
 /* --------------------------------------------------------------- layout */
 .container { max-width: 1120px; margin: 0 auto; padding: 28px 24px 64px; }
+/* Le calendrier hebdomadaire : 7 colonnes horaires méritent la largeur
+   de la fenêtre, pas la colonne de lecture des écrans de formulaire. */
+.container--wide { max-width: 1480px; }
 .page-head {
   display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
   margin-bottom: 20px; flex-wrap: wrap;
@@ -99,6 +126,7 @@ table.data-table td { padding: 12px 10px; border-bottom: 1px solid var(--line); 
 table.data-table tr:hover td { background: #fbf7f2; }
 table.data-table .row-actions { text-align: right; white-space: nowrap; }
 .empty-state { padding: 48px 20px; text-align: center; color: var(--muted); }
+.muted { color: var(--muted); }
 .empty-state .btn { margin-top: 14px; }
 
 .badge {
@@ -116,6 +144,9 @@ table.data-table .row-actions { text-align: right; white-space: nowrap; }
   font-size: 11px; font-weight: 700; white-space: nowrap; }
 .flag--randstad { background: var(--blue-bg); color: var(--blue-text); }
 .flag--driver { background: var(--ok-bg); color: var(--ok-text); }
+.flag--access { background: #f1eee7; color: var(--ink-soft); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.flag--admin { background: var(--blue-bg); color: var(--blue-text); }
+.flag--reset { background: #fff2df; color: #9a5b00; }
 .flag-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
 
 /* ---------------------------------------------------------------- forms */
@@ -256,6 +287,35 @@ footer.app-footer { text-align: center; color: var(--muted); font-size: 12px; pa
 .driver-color-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 7px; vertical-align: middle; }
 
 /* ------------------------------------------------------------------ planning */
+/* Semaine affichée : l'information principale de l'écran Planning. */
+.week-title {
+  font-size: 20px; font-weight: 400; color: var(--ink-soft);
+  letter-spacing: -0.2px; margin-top: 4px;
+}
+
+/* Navigation de semaine : une flèche de chaque côté du calendrier. */
+/* Les deux flèches encadrent la barre de filtres, pas le calendrier : ce
+   dernier récupère ainsi toute la largeur. `space-between` les plaque aux
+   extrémités et laisse respirer la barre, qui garde sa largeur naturelle. */
+.week-nav-row {
+  display: flex; align-items: stretch; justify-content: space-between;
+  gap: 28px; margin-bottom: 20px;
+}
+.week-nav-row .filter-bar { flex: 0 1 auto; margin: 0; padding: 12px 16px; }
+.week-nav {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  flex: none; padding: 14px 20px;
+  background: #fff; border: 1px solid var(--line-strong); border-radius: 10px;
+  color: var(--ink); font-weight: 700; font-size: 14px; text-align: left;
+  line-height: 1.2; box-shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+.week-nav:hover {
+  text-decoration: none; background: var(--red); border-color: var(--red); color: #fff;
+  box-shadow: 0 2px 8px rgba(214,41,58,.28);
+}
+.week-nav__arrow { font-size: 30px; line-height: 1; font-weight: 700; }
+.week-nav--next { flex-direction: row-reverse; }
+
 .planning-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 16px; font-size: 12.5px; color: var(--ink-soft); }
 .planning-legend__item { display: inline-flex; align-items: center; gap: 6px; }
 .planning-legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
@@ -271,8 +331,8 @@ footer.app-footer { text-align: center; color: var(--muted); font-size: 12px; pa
 .planning-grid { display: none; border: 1px solid var(--line); border-radius: 10px; background: #fff; overflow: hidden; margin-bottom: 20px; }
 .planning-grid__row { display: flex; }
 .planning-grid__gutter { flex: 0 0 52px; }
-.planning-grid__header { border-bottom: 1px solid var(--line); }
-.planning-grid__daycol-header { flex: 1; text-align: center; padding: 10px 4px; border-left: 1px solid var(--line); }
+.planning-grid__header { border-bottom: 2px solid var(--ink); }
+.planning-grid__daycol-header { flex: 1; text-align: center; padding: 10px 4px; border-left: 2px solid var(--ink); }
 .planning-grid__daycol-header .dow { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); font-weight: 700; }
 .planning-grid__daycol-header .dom { font-size: 17px; font-weight: 700; margin-top: 2px; }
 .planning-grid__daycol-header.is-today .dom { color: var(--red); }
@@ -284,27 +344,55 @@ footer.app-footer { text-align: center; color: var(--muted); font-size: 12px; pa
   text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.planning-grid__scroll { max-height: 65vh; overflow-y: auto; }
+/* Pas de hauteur contrainte : la grille se déroule entièrement et c'est
+   la page qui défile. Deux ascenseurs imbriqués rendaient la lecture
+   pénible (on ne savait plus lequel on actionnait). */
+.planning-grid__scroll { overflow: visible; }
 .planning-grid__body { position: relative; align-items: stretch; }
 .planning-grid__hour {
   height: 48px; box-sizing: border-box; border-top: 1px solid var(--line);
   font-size: 11px; color: var(--muted); padding: 2px 8px 0 0; text-align: right;
 }
 .planning-grid__hour:first-child { border-top: none; }
-.planning-grid__daycol { position: relative; flex: 1; border-left: 1px solid var(--line); height: 1152px; }
+.planning-grid__daycol { position: relative; flex: 1; border-left: 2px solid var(--ink); height: 1152px; }
 .planning-grid__daycol.is-today { background: #fff8f2; }
 .planning-grid__hline { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--line); }
 
 .planning-event {
-  position: absolute; border-radius: 6px; padding: 3px 6px; overflow: hidden;
+  position: absolute; border-radius: 6px; padding: 5px 7px; overflow: hidden;
   font-size: 11.5px; line-height: 1.25; color: #fff; text-decoration: none;
   box-shadow: 0 1px 2px rgba(0,0,0,.15); border: 1px solid rgba(0,0,0,.1);
 }
 .planning-event:hover { text-decoration: none; filter: brightness(0.94); }
-.planning-event__time { font-weight: 700; font-size: 10.5px; opacity: .95; }
-.planning-event__title { font-weight: 700; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.planning-event__meta { font-size: 9.5px; opacity: .9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.planning-event__vehicle { font-size: 9px; opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Mission de nuit : les deux moitiés (soir + lendemain matin) sont deux
+   blocs distincts. Bord plat et liseré clair du côté où elles se
+   rejoignent, pour qu'elles se lisent comme une seule mission coupée par
+   minuit plutôt que comme deux missions. */
+.planning-event--continues {
+  border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+  border-bottom: 2px dashed rgba(255,255,255,.55);
+}
+.planning-event--continued {
+  border-top-left-radius: 0; border-top-right-radius: 0;
+  border-top: 2px dashed rgba(255,255,255,.55);
+}
+/* Trois informations empilées, séparées du même intervalle : la plage
+   horaire, l'amplitude, puis le nom de la mission — celui qu'on cherche
+   du regard, donc le plus lisible des trois. */
+.planning-event__time { font-weight: 700; font-size: 11.5px; opacity: .95; }
+.planning-event__amplitude { margin-top: 4px; font-size: 11.5px; font-weight: 700; opacity: .8; }
+.planning-event__title {
+  /* Marge haute ET basse : le nom se détache du reste du bloc. */
+  margin: 9px 0; font-weight: 800; font-size: 12px; line-height: 1.2;
+  /* Jusqu'à trois lignes plutôt qu'une coupure à « 26CAN… » : dans une
+     colonne étroite, le nom tronqué ne dit plus rien. break-word (et non
+     anywhere) fait passer le retour à la ligne par les espaces d'abord,
+     et ne coupe un mot que s'il ne tient pas seul. */
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden; overflow-wrap: break-word;
+}
+.planning-event__meta { font-size: 11px; opacity: .9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.planning-event__vehicle { margin-top: 2px; font-size: 10.5px; opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .planning-now-line { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 3; pointer-events: none; }
 .planning-now-line::before {
@@ -326,6 +414,11 @@ footer.app-footer { text-align: center; color: var(--muted); font-size: 12px; pa
   border-radius: 8px; text-decoration: none; color: var(--ink);
 }
 .planning-chip:hover { text-decoration: none; background: #fbf7f2; }
+/* Vue agenda : la suite d'une mission de la veille est en retrait et en
+   bordure pointillée, pour ne pas la compter comme une mission du jour. */
+.planning-chip--continued {
+  border-left-style: dashed; background: #fcfbf9;
+}
 .planning-chip__time { font-size: 11.5px; font-weight: 700; color: var(--chip-color, var(--ink-soft)); }
 .planning-chip__title { font-size: 13px; font-weight: 700; }
 .planning-chip__meta { font-size: 11px; color: var(--muted); }
@@ -346,6 +439,22 @@ footer.app-footer { text-align: center; color: var(--muted); font-size: 12px; pa
   .topbar { gap: 14px; padding: 0 12px; height: 54px; }
   .topbar__brand img { height: 22px; }
   .topbar__nav a { padding: 8px 10px; font-size: 13.5px; }
+  /* Le menu ne tient pas sur un téléphone : il défile, et un dégradé sur
+     le bord droit montre qu'il reste des entrées à faire glisser. */
+  .topbar__nav { overflow-x: auto; scrollbar-width: none; }
+  .topbar__nav::-webkit-scrollbar { display: none; }
+  .topbar__nav {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  }
+  .topbar__nav a { white-space: nowrap; }
+  /* Place comptée : on garde le bouton de déconnexion, pas le nom. */
+  .topbar__user { gap: 6px; }
+  .topbar__user-name { display: none; }
+  .topbar__logout { padding: 5px 9px; font-size: 12px; }
+
+  .login__card { padding: 26px 20px; }
+  .topbar__icon-btn { width: 28px; height: 28px; }
 
   .container { padding: 18px 14px 48px; }
   .card { padding: 16px; }
@@ -359,6 +468,20 @@ footer.app-footer { text-align: center; color: var(--muted); font-size: 12px; pa
 
   .filter-bar .field { flex: 1 1 100%; min-width: 0 !important; }
   .filter-bar .field:has(input[type=date]) { flex-basis: calc(50% - 7px); }
+
+  /* Vue agenda : les deux flèches passent au-dessus, côte à côte. */
+  /* Les flèches passent au-dessus et en-dessous de la barre de filtres,
+     sur toute la largeur : côte à côte, elles seraient trop étroites. */
+  .week-nav-row { flex-direction: column; gap: 10px; }
+  .week-nav { justify-content: center; padding: 12px; font-size: 14px; }
+  .week-nav__arrow { font-size: 22px; }
+  .week-nav__label br { display: none; }
+  .week-nav-row .filter-bar { width: 100%; }
+  .week-title { font-size: 17px; }
+
+  /* Bloc-notes : bandeau bas, pleine largeur, plutôt qu'une vignette. */
+  .notes-panel { right: 10px; left: 10px; bottom: 10px; width: auto; }
+  .notes-panel textarea { height: 200px; }
 
   .tabs { overflow-x: auto; }
   .tab { white-space: nowrap; }
@@ -406,3 +529,108 @@ footer.app-footer { text-align: center; color: var(--muted); font-size: 12px; pa
   .attachment-item { gap: 10px; }
   .attachment-item .name { overflow-wrap: anywhere; }
 }
+
+/* ----------------------------------------------------------- connexion */
+.login-body { min-height: 100vh; display: flex; }
+.login {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 32px 20px;
+}
+.login__card {
+  width: 100%; max-width: 380px; background: #fff; border: 1px solid var(--line);
+  border-radius: 12px; padding: 32px 28px;
+}
+.login__logo { display: block; height: 34px; margin: 0 auto 22px; }
+.login__title { font-size: 19px; margin: 0 0 4px; text-align: center; letter-spacing: -0.2px; }
+.login__sub { margin: 0 0 22px; text-align: center; color: var(--muted); font-size: 13.5px; }
+.login__submit { width: 100%; justify-content: center; margin-top: 4px; }
+.login__hint { margin: 18px 0 0; text-align: center; color: var(--muted); font-size: 12px; }
+
+/* Bloc « Accès à l'application » de la fiche chauffeur */
+.access-block {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px 18px 4px; margin: 4px 0 0; min-width: 0;
+}
+.access-block legend {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.4px;
+  color: var(--ink-soft); font-weight: 700; padding: 0 6px;
+}
+.access-block .hint { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+.access-fields { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+.access-fields[hidden] { display: none; }
+
+/* Champ dont la valeur est déduite des autres (voyageurs de l'arrêt
+   qui regroupe tout le monde) : visiblement non saisissable. */
+input.is-computed {
+  background: #f4f2ed; color: var(--ink-soft); font-weight: 700;
+  border-style: dashed; cursor: not-allowed;
+}
+.access-reset { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 14px; }
+.access-reset .hint { margin-top: 6px; margin-bottom: 10px; }
+
+/* Coordonnées imprimées sur le Billet Collectif (formulaire OM) */
+.bc-client {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px 18px 6px; margin: 4px 0 18px; min-width: 0;
+}
+.bc-client legend {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.4px;
+  color: var(--ink-soft); font-weight: 700; padding: 0 6px;
+}
+.bc-client .hint { font-size: 12px; color: var(--muted); }
+#emission-date-preview.is-fallback { color: var(--muted); font-weight: 400; }
+
+/* ------------------------------------------------------------- notes */
+/* Fiche OM : la carte Notes se replie quand il n'y a rien, pour ne pas
+   pousser les trajets vers le bas avec un cadre vide. */
+.notes-card { padding: 0; }
+.notes-card > summary {
+  list-style: none; cursor: pointer; padding: 14px 22px;
+  font-size: 15px; text-transform: uppercase; letter-spacing: 0.4px;
+  color: var(--ink-soft); font-weight: 700;
+}
+.notes-card > summary::-webkit-details-marker { display: none; }
+.notes-card > summary::before {
+  content: "\25B8"; display: inline-block; margin-right: 8px;
+  transition: transform .12s ease; color: var(--muted);
+}
+.notes-card[open] > summary::before { transform: rotate(90deg); }
+.notes-card > summary:hover { background: #fbf7f2; border-radius: 10px; }
+.notes-card[open] > summary { border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; }
+.notes-card__sub, .notes-card__empty {
+  font-weight: 400; text-transform: none; letter-spacing: 0;
+}
+.notes-card__empty { color: var(--muted); }
+.notes-card__body { padding: 16px 22px 18px; }
+.notes-card__body .btn-row { margin-top: 10px; }
+
+.notes-panel {
+  position: fixed; right: 20px; bottom: 20px; z-index: 40;
+  width: min(340px, calc(100vw - 32px)); display: flex; flex-direction: column;
+  background: #fff; border: 1px solid var(--line-strong); border-radius: 12px;
+  box-shadow: 0 14px 40px rgba(0,0,0,.2); overflow: hidden;
+}
+.notes-panel[hidden] { display: none; }
+.notes-panel__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 14px; background: var(--ink); color: #fff;
+}
+.notes-panel__head h2 {
+  margin: 0; font-size: 12.5px; text-transform: uppercase; letter-spacing: .4px; color: #fff;
+}
+.notes-panel__close {
+  background: transparent; border: 0; font-size: 22px; line-height: 1; cursor: pointer;
+  color: #d9d9de; padding: 0 2px;
+}
+.notes-panel__close:hover { color: #fff; }
+.notes-panel textarea {
+  display: block; width: 100%; height: 260px; border: 0; border-radius: 0; resize: vertical;
+  padding: 12px 14px; font-family: var(--font); font-size: 13.5px; line-height: 1.55;
+}
+.notes-panel textarea:focus { outline: 0; box-shadow: none; }
+.notes-panel__foot {
+  min-height: 30px; display: flex; align-items: center; padding: 4px 14px 8px;
+  border-top: 1px solid var(--line); background: var(--paper);
+}
+.notes-panel__foot .hint.is-error { color: var(--err-text); font-weight: 700; }
+.topbar__icon-btn.is-active { background: var(--red); border-color: var(--red); color: #fff; }

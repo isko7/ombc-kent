@@ -509,6 +509,87 @@ function initAddressProviderToggle() {
 // ------------------------------------------------ création de client
 // Crée un client sans quitter le formulaire de mission, puis l'ajoute au
 // menu déroulant et le sélectionne.
+// Coordonnées imprimées sur le Billet Collectif : recopiées de la fiche
+// client à la sélection, puis modifiables pour cette mission seulement.
+const BC_FIELDS = ["name", "address", "postal_code", "city", "phone"];
+
+function bcClientInputs() {
+  const out = {};
+  BC_FIELDS.forEach((f) => {
+    out[f] = document.querySelector(`[name="bc_client_${f}"]`);
+  });
+  return out;
+}
+
+function fillBcClientFrom(clientId) {
+  const box = document.getElementById("bc-client");
+  if (!box) return;
+  let clients = {};
+  try {
+    clients = JSON.parse(box.dataset.clients || "{}");
+  } catch (e) {
+    return;
+  }
+  const client = clients[clientId] || null;
+  const inputs = bcClientInputs();
+  BC_FIELDS.forEach((f) => {
+    if (inputs[f]) inputs[f].value = client ? (client[f] || "") : "";
+  });
+}
+
+function registerClient(id, client) {
+  const box = document.getElementById("bc-client");
+  if (!box) return;
+  let clients = {};
+  try {
+    clients = JSON.parse(box.dataset.clients || "{}");
+  } catch (e) {
+    clients = {};
+  }
+  clients[String(id)] = client;
+  box.dataset.clients = JSON.stringify(clients);
+}
+
+function initBcClient() {
+  const select = document.getElementById("client-select");
+  const box = document.getElementById("bc-client");
+  if (!select || !box) return;
+
+  // Changer de client remplace les coordonnées : les retouches portaient
+  // sur le client précédent, les garder n'aurait pas de sens.
+  select.addEventListener("change", () => fillBcClientFrom(select.value));
+
+  const reset = document.getElementById("bc-client-reset");
+  if (reset) reset.addEventListener("click", () => fillBcClientFrom(select.value));
+
+  // Mission déjà enregistrée avant l'arrivée de ces champs : on les amorce
+  // depuis la fiche client plutôt que de laisser le cadre vide sur le BC.
+  const inputs = bcClientInputs();
+  const empty = BC_FIELDS.every((f) => inputs[f] && !inputs[f].value.trim());
+  if (empty && select.value) fillBcClientFrom(select.value);
+}
+
+// Un <input type="date"> s'affiche selon la locale du navigateur (parfois
+// mm/jj/aaaa). On montre à côté la date telle qu'elle sera imprimée.
+function initEmissionDatePreview() {
+  const input = document.getElementById("emission-date");
+  const out = document.getElementById("emission-date-preview");
+  if (!input || !out) return;
+  const missionDate = document.querySelector('[name="mission_date"]');
+
+  const render = () => {
+    // Le BC retombe sur la date de mission quand l'émission est vide.
+    const iso = input.value || (missionDate ? missionDate.value : "");
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    out.textContent = m ? `${m[3]}/${m[2]}/${m[1]}` : "—";
+    out.classList.toggle("is-fallback", !input.value && !!m);
+  };
+  input.addEventListener("change", render);
+  input.addEventListener("input", render);
+  if (missionDate) missionDate.addEventListener("change", render);
+  render();
+}
+
 function initNewClient() {
   const box = document.getElementById("new-client-box");
   const toggle = document.getElementById("new-client-toggle");
@@ -558,6 +639,17 @@ function initNewClient() {
       opt.textContent = data.name;
       select.appendChild(opt);
       select.value = data.id;
+      // Le client vient d'être créé : il n'est pas dans la table rendue avec
+      // la page. On l'y ajoute, puis on remplit le cadre du BC — affecter
+      // select.value par programme ne déclenche aucun événement "change".
+      registerClient(data.id, {
+        name: data.name,
+        address: fields.address ? fields.address.value.trim() : "",
+        postal_code: fields.postal_code ? fields.postal_code.value.trim() : "",
+        city: fields.city ? fields.city.value.trim() : "",
+        phone: fields.phone ? fields.phone.value.trim() : "",
+      });
+      fillBcClientFrom(String(data.id));
       close();
     } catch (e) {
       msg.textContent = "Échec de la création : " + e.message;
@@ -566,6 +658,47 @@ function initNewClient() {
 }
 
 // ---------------------------------------------------- génération legs
+// Voyageurs des arrêts (Billet Collectif) : quand tous les voyageurs
+// convergent vers un seul arrêt, celui-ci porte la somme des autres.
+// Même règle que côté serveur (app/utils.py:balance_passenger_counts), pour
+// que le champ se mette à jour sous les yeux de la personne qui saisit.
+function balancePassengerCounts() {
+  const rows = Array.from(document.querySelectorAll("#stops-body tr"));
+  const of = (tr) => ({
+    type: tr.querySelector('[name="stop_type[]"]'),
+    count: tr.querySelector('[name="stop_passenger_count[]"]'),
+  });
+  const cells = rows.map(of).filter((c) => c.type && c.count);
+  const pickups = cells.filter((c) => c.type.value === "prise_en_charge");
+  const dropoffs = cells.filter((c) => c.type.value === "depose");
+
+  // On repart d'une ardoise propre : la configuration a pu changer.
+  cells.forEach((c) => {
+    c.count.readOnly = false;
+    c.count.classList.remove("is-computed");
+    c.count.removeAttribute("title");
+  });
+
+  let aggregated = null;
+  let sources = null;
+  if (dropoffs.length === 1 && pickups.length >= 2) {
+    aggregated = dropoffs[0];
+    sources = pickups;
+  } else if (pickups.length === 1 && dropoffs.length >= 2) {
+    aggregated = pickups[0];
+    sources = dropoffs;
+  } else {
+    return; // 1 <-> 1 ou N <-> N : rien d'évident à déduire, on laisse saisir.
+  }
+
+  const total = sources.reduce(
+    (sum, c) => sum + (parseInt(c.count.value, 10) || 0), 0);
+  aggregated.count.value = total;
+  aggregated.count.readOnly = true;
+  aggregated.count.classList.add("is-computed");
+  aggregated.count.title = "Calculé : somme des autres arrêts.";
+}
+
 function generateLegsFromStops() {
   const stopRows = Array.from(document.querySelectorAll("#stops-body tr"));
   const stops = stopRows.map((tr) => ({
@@ -623,6 +756,17 @@ document.addEventListener("DOMContentLoaded", () => {
     scheduleLegsSummaryUpdate();
   });
 
+  // Toute modification du tableau des arrêts (saisie, changement de type,
+  // ajout ou suppression de ligne) peut changer l'arrêt qui agrège.
+  const stopsBody = document.getElementById("stops-body");
+  if (stopsBody) {
+    ["input", "change"].forEach((evt) =>
+      stopsBody.addEventListener(evt, balancePassengerCounts));
+    new MutationObserver(balancePassengerCounts)
+      .observe(stopsBody, { childList: true });
+    balancePassengerCounts();
+  }
+
   const addStopBtn = document.getElementById("add-stop-row");
   if (addStopBtn) addStopBtn.addEventListener("click", () => {
     addRow("stops-body", "stop-row-template");
@@ -648,6 +792,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   initNewClient();
+  initBcClient();
+  initEmissionDatePreview();
   initAddressProviderToggle();
 
   // Init : afficher les sélecteurs de relais déjà actifs et mémoriser

@@ -16,7 +16,8 @@ from flask import Blueprint, request, jsonify, abort
 
 from app.config import env
 from app.db import init_db, check_connection
-from app.seeding import seed_templates, seed_demo_data, refresh_default_templates
+from app.seeding import (seed_templates, seed_demo_data, refresh_default_templates,
+                          ensure_login_access)
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -84,6 +85,10 @@ def init():
         else:
             steps["templates"] = seed_templates()
         steps["templates_ms"] = round((time.monotonic() - t0) * 1000)
+
+        t0 = time.monotonic()
+        steps["login_access"] = ensure_login_access() or ["déjà configuré"]
+        steps["login_access_ms"] = round((time.monotonic() - t0) * 1000)
 
         if request.args.get("demo") in ("1", "true", "yes"):
             t0 = time.monotonic()

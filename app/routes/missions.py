@@ -7,6 +7,7 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from app import repo
+from app.auth import current_user, is_admin
 from app.config import COMPANY, RANDSTAD_EMAIL, GOOGLE_MAPS_API_KEY
 from app.pdf_service import (
     generate_mission_pdf, extract_pdf_pages, PdfGenerationError,
@@ -16,8 +17,8 @@ from app.email_service import send_mission_email, send_bulk_email, EmailError
 from app.routing import estimate_route, format_duration, add_minutes, build_driver_itinerary_url, RoutingError
 from app.routes.settings import get_address_search_provider
 from app.utils import (
-    fmt_date_full, fmt_date_long, fmt_date_short, fmt_time, legs_time_summary,
-    normalize_time, service_time_range, shuttle_number,
+    balance_passenger_counts, fmt_date_full, fmt_date_long, fmt_date_short,
+    fmt_time, legs_time_summary, normalize_time, service_time_range, shuttle_number,
 )
 
 bp = Blueprint("missions", __name__, url_prefix="/missions")
@@ -111,6 +112,13 @@ def _mission_form_to_data(form):
         "motif": form.get("motif", "").strip() or "Transport Occasionnel",
         "remarks": form.get("remarks", "").strip() or None,
         "client_id": int(form["client_id"]) if form.get("client_id") else None,
+        # Coordonnées portées sur le BC : recopiées de la fiche client à la
+        # sélection, puis modifiables pour cette mission seulement.
+        "bc_client_name": form.get("bc_client_name", "").strip() or None,
+        "bc_client_address": form.get("bc_client_address", "").strip() or None,
+        "bc_client_postal_code": form.get("bc_client_postal_code", "").strip() or None,
+        "bc_client_city": form.get("bc_client_city", "").strip() or None,
+        "bc_client_phone": form.get("bc_client_phone", "").strip() or None,
         "emission_date": form.get("emission_date") or None,
         "price": form.get("price", "").strip() or None,
         "status": form.get("status") or "brouillon",
@@ -122,6 +130,10 @@ def _mission_form_to_data(form):
     stops = _parse_stops(form)
     for s in stops:
         s["stop_date"] = s["stop_date"] or data["mission_date"]
+    # L'arrêt qui regroupe tous les voyageurs porte la somme des autres.
+    # Le formulaire le calcule déjà en direct (champ en lecture seule) ;
+    # on le refait ici pour que la règle tienne aussi sans JavaScript.
+    balance_passenger_counts(stops)
     data["legs"] = _parse_legs(form)
     data["stops"] = stops
     return data
@@ -132,6 +144,12 @@ def _form_context(mission=None):
         "drivers": repo.list_drivers(include_inactive=False),
         "vehicles": repo.list_vehicles(include_inactive=False),
         "clients": repo.list_clients(pinned_first=True),
+        "clients_by_id": {
+            c["id"]: {"name": c["name"], "address": c.get("address") or "",
+                      "postal_code": c.get("postal_code") or "", "city": c.get("city") or "",
+                      "phone": c.get("phone") or c.get("email") or ""}
+            for c in repo.list_clients()
+        },
         "om_templates": repo.list_templates("OM"),
         "bc_templates": repo.list_templates("BC"),
         "mission": mission,
@@ -144,6 +162,11 @@ def _form_context(mission=None):
 @bp.route("/")
 def list_missions_view():
     driver_id = request.args.get("driver_id", type=int)
+    # Un chauffeur non administrateur ne voit que ses propres OM, quel que
+    # soit le paramètre d'URL.
+    own = _own_driver_id()
+    if own is not None:
+        driver_id = own
     date_from = request.args.get("date_from") or None
     date_to = request.args.get("date_to") or None
     status = request.args.get("status") or None
@@ -231,8 +254,29 @@ def new_mission():
         "driver_id": None, "client_id": None, "om_template_id": None, "bc_template_id": None,
         "mission_date": "", "mission_name": "", "emission_date": date.today().isoformat(),
         "shuttle_label": "", "price": "", "remarks": "",
+        "bc_client_name": "", "bc_client_address": "", "bc_client_postal_code": "",
+        "bc_client_city": "", "bc_client_phone": "",
         "legs": [], "stops": [],
     }))
+
+
+def _own_driver_id():
+    """Identifiant du chauffeur connecté quand il n'est PAS administrateur
+    — c'est-à-dire quand sa vue doit être limitée à ses propres missions.
+    None pour un administrateur (aucune restriction)."""
+    if is_admin():
+        return None
+    user = current_user()
+    return user["id"] if user else None
+
+
+def _require_mission_access(mission):
+    """404 si la mission n'appartient pas au chauffeur connecté. 404 plutôt
+    que 403 : inutile de confirmer l'existence d'une mission qu'il n'a pas
+    à voir."""
+    own = _own_driver_id()
+    if own is not None and mission.get("driver_id") != own:
+        abort(404)
 
 
 def _billing_summary(mission):
@@ -262,7 +306,9 @@ def _billing_summary(mission):
     # Heure du 1er arrêt du Billet Collectif (pas celle de la prise de service).
     start = stops[0]["stop_time"] if stops else ""
     header = " - ".join([
-        f"NAVETTE {number or 'X'}",
+        # Sans numéro de navette renseigné, on écrit « NAVETTE » tout court
+        # plutôt qu'un « NAVETTE X » qui se retrouverait tel quel en facture.
+        f"NAVETTE {number}".strip(),
         direction,
         f"{fmt_date_long(mission['mission_date'])} {fmt_time(start)}".strip(),
     ])
@@ -283,6 +329,7 @@ def detail_mission(mission_id):
     mission = repo.get_mission(mission_id)
     if not mission:
         abort(404)
+    _require_mission_access(mission)
     emails = repo.list_email_log(mission_id)
     return render_template("missions/detail.html", mission=mission, emails=emails,
                             positions=ATTACHMENT_POSITIONS,
@@ -307,6 +354,18 @@ def edit_mission(mission_id):
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
     return render_template("missions/form.html", is_new=False, mission_id=mission_id,
                             **_form_context(existing))
+
+
+@bp.route("/<int:mission_id>/notes", methods=["POST"])
+def save_mission_notes(mission_id):
+    """Notes diverses attachées à l'ordre de mission. Réservées aux
+    administrateurs (comme toute écriture) et absentes du PDF."""
+    mission = repo.get_mission(mission_id)
+    if not mission:
+        abort(404)
+    repo.set_mission_notes(mission_id, request.form.get("notes", "").strip())
+    flash("Notes enregistrées.", "success")
+    return redirect(url_for("missions.detail_mission", mission_id=mission_id) + "#notes")
 
 
 @bp.route("/<int:mission_id>/supprimer", methods=["POST"])
@@ -336,6 +395,10 @@ def create_return_mission(mission_id):
 
 @bp.route("/<int:mission_id>/pdf")
 def mission_pdf(mission_id):
+    mission = repo.get_mission(mission_id)
+    if not mission:
+        abort(404)
+    _require_mission_access(mission)
     try:
         pdf_bytes, filename = generate_mission_pdf(mission_id)
     except PdfGenerationError as e:

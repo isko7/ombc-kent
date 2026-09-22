@@ -2,6 +2,7 @@
 Amorce la base de données :
   - crée le schéma s'il n'existe pas encore
   - installe les templates OM/BC par défaut (issus de app/templates_data/)
+  - s'assure qu'au moins un chauffeur peut se connecter à l'application
   - avec --demo : ajoute un chauffeur, un véhicule, un client et un ordre
     de mission complet (MARTIN Yannis, 15/09/2026)
 
@@ -24,12 +25,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app.db import init_db
-from app.seeding import seed_templates, seed_demo_data
+from app.seeding import seed_templates, seed_demo_data, ensure_login_access
 
 
 if __name__ == "__main__":
     init_db(force=True)
     for msg in seed_templates():
+        print(msg)
+    for msg in ensure_login_access():
         print(msg)
     if "--demo" in sys.argv:
         actions = seed_demo_data()

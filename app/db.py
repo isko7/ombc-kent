@@ -35,9 +35,16 @@ SCHEMA_STATEMENTS = [
         active TINYINT(1) NOT NULL DEFAULT 1,
         color VARCHAR(9),
         send_itinerary TINYINT(1) NOT NULL DEFAULT 0,
+        personal_notes TEXT,
+        can_login TINYINT(1) NOT NULL DEFAULT 0,
+        is_admin TINYINT(1) NOT NULL DEFAULT 0,
+        must_change_password TINYINT(1) NOT NULL DEFAULT 0,
+        username VARCHAR(80) NULL,
+        password_hash VARCHAR(255) NULL,
         notes TEXT,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_drivers_username (username)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     """
@@ -89,6 +96,11 @@ SCHEMA_STATEMENTS = [
         motif VARCHAR(255) NOT NULL DEFAULT 'Transport Occasionnel',
         remarks TEXT,
         client_id INT NULL,
+        bc_client_name VARCHAR(255),
+        bc_client_address VARCHAR(255),
+        bc_client_postal_code VARCHAR(20),
+        bc_client_city VARCHAR(120),
+        bc_client_phone VARCHAR(255),
         emission_date VARCHAR(10),
         price VARCHAR(60),
         status VARCHAR(30) NOT NULL DEFAULT 'brouillon',
@@ -97,6 +109,7 @@ SCHEMA_STATEMENTS = [
         amplitude_minutes INT NULL,
         driving_minutes INT NULL,
         pause_minutes INT NULL,
+        notes TEXT,
         sent_randstad_at DATETIME NULL,
         sent_driver_at DATETIME NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -176,7 +189,8 @@ SCHEMA_STATEMENTS = [
 
 # Migrations légères pour les bases déjà créées (les CREATE TABLE IF NOT
 # EXISTS ci-dessus ne modifient pas une table existante). Chaque instruction
-# est jouée en ignorant l'erreur « colonne déjà présente » (MySQL 1060).
+# est jouée en ignorant l'erreur « déjà appliquée » (voir
+# MIGRATION_ALREADY_APPLIED).
 MIGRATIONS = [
     "ALTER TABLE mission_legs ADD COLUMN is_relay TINYINT(1) NOT NULL DEFAULT 0",
     "ALTER TABLE mission_legs ADD COLUMN relay_driver_id INT NULL",
@@ -189,7 +203,24 @@ MIGRATIONS = [
     "ALTER TABLE missions ADD COLUMN driving_minutes INT NULL",
     "ALTER TABLE missions ADD COLUMN pause_minutes INT NULL",
     "ALTER TABLE drivers ADD COLUMN send_itinerary TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE drivers ADD COLUMN can_login TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE drivers ADD COLUMN username VARCHAR(80) NULL",
+    "ALTER TABLE drivers ADD COLUMN password_hash VARCHAR(255) NULL",
+    "ALTER TABLE drivers ADD UNIQUE KEY uq_drivers_username (username)",
+    "ALTER TABLE drivers ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE drivers ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE missions ADD COLUMN bc_client_name VARCHAR(255)",
+    "ALTER TABLE missions ADD COLUMN bc_client_address VARCHAR(255)",
+    "ALTER TABLE missions ADD COLUMN bc_client_postal_code VARCHAR(20)",
+    "ALTER TABLE missions ADD COLUMN bc_client_city VARCHAR(120)",
+    "ALTER TABLE missions ADD COLUMN bc_client_phone VARCHAR(255)",
+    "ALTER TABLE missions ADD COLUMN notes TEXT",
+    "ALTER TABLE drivers ADD COLUMN personal_notes TEXT",
 ]
+
+# Codes d'erreur MySQL qui signifient « migration déjà appliquée » :
+# 1060 colonne déjà présente, 1061 index déjà présent.
+MIGRATION_ALREADY_APPLIED = (1060, 1061)
 
 
 def _connect():
@@ -328,8 +359,7 @@ def init_db(force=False, report=False):
                 cur.execute(stmt)
                 timings.append({"migration": stmt[:60], "ms": 0})
             except Exception as e:
-                # 1060 = Duplicate column -> migration déjà appliquée
-                if getattr(e, "args", [None])[0] != 1060:
+                if getattr(e, "args", [None])[0] not in MIGRATION_ALREADY_APPLIED:
                     raise
     conn.commit()
     _initialized = True

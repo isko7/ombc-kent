@@ -40,6 +40,37 @@ SECRET_KEY = env("SECRET_KEY", "dev-secret-change-me")
 PORT = int(env("PORT", "8000"))
 DEBUG = env("FLASK_DEBUG", "0") == "1"
 
+# --- Authentification (JWT) -------------------------------------------
+# Les seuls comptes sont des fiches chauffeur : un chauffeur peut se
+# connecter si on lui a coché « Accès à l'application » et donné un
+# identifiant + mot de passe (écran Chauffeurs). Il n'y a pas d'autre type
+# d'utilisateur : un chauffeur connecté a accès à toute l'application.
+#
+# Le jeton JWT (HS256) est signé avec JWT_SECRET, ou à défaut SECRET_KEY —
+# l'application fonctionne donc sans variable supplémentaire. Changer ce
+# secret déconnecte tout le monde.
+JWT_SECRET = env("JWT_SECRET") or SECRET_KEY
+# Durée de validité du jeton, en heures (7 jours par défaut : un chauffeur
+# qui consulte son planning depuis son téléphone n'a pas à se reconnecter
+# chaque jour).
+JWT_TTL_HOURS = int(env("JWT_TTL_HOURS", "168"))
+# Cookie porteur du jeton. Secure est activé hors debug (HTTPS sur Vercel).
+AUTH_COOKIE_NAME = env("AUTH_COOKIE_NAME", "kent_auth")
+
+# Chauffeur amorcé avec un accès à l'application si AUCUN chauffeur n'en a
+# (première mise en service, ou accès révoqué à tout le monde par erreur) :
+# sans cela, personne ne pourrait plus se connecter. Voir
+# app/seeding.py:ensure_login_access().
+# `or` plutôt qu'une valeur par défaut d'env() : .env.example livre ces
+# clés vides, et une valeur vide doit retomber sur le défaut (un mot de
+# passe vide donnerait un compte inutilisable, donc un verrouillage).
+BOOTSTRAP_LAST_NAME = env("BOOTSTRAP_LAST_NAME") or "KILINC"
+BOOTSTRAP_FIRST_NAME = env("BOOTSTRAP_FIRST_NAME") or "Ismail"
+BOOTSTRAP_EMAIL = env("BOOTSTRAP_EMAIL") or "ikilinc07@gmail.com"
+BOOTSTRAP_USERNAME = env("BOOTSTRAP_USERNAME") or "ikilinc"
+BOOTSTRAP_PASSWORD = env("BOOTSTRAP_PASSWORD") or "kent2026"
+
+
 # Taille max d'une pièce jointe uploadée. Attention : au-delà de la valeur
 # de `max_allowed_packet` de votre serveur MySQL (souvent 4 à 16 Mo sur les
 # offres managées), l'insertion du LONGBLOB échouera.

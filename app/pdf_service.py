@@ -235,9 +235,29 @@ def build_om_context(mission):
     }
 
 
+def _bc_client(mission):
+    """Bloc « Client / donneur d'ordre » du Billet Collectif.
+
+    Ce sont les coordonnées saisies sur la mission (bc_client_*), recopiées
+    depuis la fiche client au moment de la sélection puis éventuellement
+    retouchées pour ce BC-là. La fiche client ne sert que de repli, pour les
+    missions antérieures à ce champ : un BC déjà émis ne doit pas changer
+    parce qu'on corrige la fiche du client des mois plus tard.
+    """
+    client = mission.get("client") or {}
+    fields = {
+        "name": mission.get("bc_client_name") or client.get("name") or "",
+        "address": mission.get("bc_client_address") or client.get("address") or "",
+        "postal_code": mission.get("bc_client_postal_code") or client.get("postal_code") or "",
+        "city": mission.get("bc_client_city") or client.get("city") or "",
+        "phone": (mission.get("bc_client_phone")
+                  or client.get("phone") or client.get("email") or ""),
+    }
+    return fields if any(fields.values()) else None
+
+
 def build_bc_context(mission):
     driver = mission["driver"]
-    client = mission.get("client")
     stops = mission["stops"]
     stop_ctx = []
     for s in stops:
@@ -257,13 +277,7 @@ def build_bc_context(mission):
         "stops": stop_ctx,
         "passenger_count": _default_passenger_count(stops),
         "price": mission.get("price") or "",
-        "client": {
-            "name": client["name"],
-            "address": client.get("address") or "",
-            "postal_code": client.get("postal_code") or "",
-            "city": client.get("city") or "",
-            "phone": client.get("phone") or client.get("email") or "",
-        } if client else None,
+        "client": _bc_client(mission),
         "emission_date_label": fmt_date_long(mission.get("emission_date") or mission["mission_date"]),
     }
 

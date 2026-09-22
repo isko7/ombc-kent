@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Planning KENT{% endblock %} — Transports KENT</title>
+  {% include "_favicons.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -11,17 +12,44 @@
     <div class="topbar__brand">
       <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Transports KENT">
     </div>
+    {# Un chauffeur non administrateur n'a accès qu'à son planning et à ses
+       ordres de mission : le reste du menu est masqué (et refusé côté
+       serveur par app/auth.py:DRIVER_ENDPOINTS). Pendant un renouvellement
+       de mot de passe obligatoire, le menu disparaît entièrement. #}
     <nav class="topbar__nav">
-      <a href="{{ url_for('missions.list_missions_view') }}" class="{{ 'active' if request.blueprint == 'missions' }}">Ordres de mission</a>
+      {% if not current_user or not current_user.must_change_password %}
       <a href="{{ url_for('planning.calendar_view') }}" class="{{ 'active' if request.blueprint == 'planning' }}">Planning</a>
-      <a href="{{ url_for('drivers.list_drivers_view') }}" class="{{ 'active' if request.blueprint == 'drivers' }}">Chauffeurs</a>
+      <a href="{{ url_for('missions.list_missions_view') }}" class="{{ 'active' if request.blueprint == 'missions' }}">Ordres de mission</a>
+      {% if is_admin %}
+      <a href="{{ url_for('drivers.list_drivers_view') }}" class="{{ 'active' if request.blueprint == 'drivers' }}">Personnel</a>
       <a href="{{ url_for('vehicles.list_vehicles_view') }}" class="{{ 'active' if request.blueprint == 'vehicles' }}">Véhicules</a>
       <a href="{{ url_for('clients.list_clients_view') }}" class="{{ 'active' if request.blueprint == 'clients' }}">Clients</a>
       <a href="{{ url_for('templates_admin.list_templates_view') }}" class="{{ 'active' if request.blueprint == 'templates_admin' }}">Templates</a>
+      {% endif %}
+      {% endif %}
     </nav>
+    {% if current_user %}
+    <div class="topbar__user">
+      <button type="button" id="notes-open" class="topbar__icon-btn" title="Mes notes"
+              aria-label="Mes notes" aria-expanded="false" aria-controls="notes-panel">
+        {# Bloc-notes : un carnet avec deux lignes de texte. #}
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>
+          <path d="M9 8h6M9 12h6M9 16h3"/>
+        </svg>
+      </button>
+      <a href="{{ url_for('auth.change_password') }}" class="topbar__user-name"
+         title="Changer mon mot de passe">{{ current_user.first_name }} {{ current_user.last_name }}{% if is_admin %} <span class="topbar__badge">admin</span>{% endif %}</a>
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <button type="submit" class="topbar__logout">Déconnexion</button>
+      </form>
+    </div>
+    {% endif %}
   </div>
 
-  <div class="container">
+  <div class="container {% block container_class %}{% endblock %}">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
@@ -32,6 +60,27 @@
 
     {% block content %}{% endblock %}
   </div>
+
+  {% if current_user %}
+  {# Bloc-notes personnel : panneau ancré, pas une fenêtre modale — il doit
+     rester ouvert pendant qu'on navigue d'un écran à l'autre. Son état est
+     mémorisé par le navigateur et rejoué au chargement (voir notes.js). #}
+  <aside id="notes-panel" class="notes-panel" hidden
+         data-url="{{ url_for('auth.save_personal_notes') }}"
+         aria-label="Mes notes">
+    <div class="notes-panel__head">
+      <h2>Mes notes</h2>
+      <button type="button" id="notes-close" class="notes-panel__close"
+              aria-label="Fermer le bloc-notes">&times;</button>
+    </div>
+    <textarea id="notes-text" spellcheck="false"
+              placeholder="Vos notes… (enregistrées au fil de la saisie)">{{ current_user.personal_notes or '' }}</textarea>
+    <div class="notes-panel__foot">
+      <span id="notes-status" class="hint"></span>
+    </div>
+  </aside>
+  <script src="{{ url_for('static', filename='js/notes.js') }}"></script>
+  {% endif %}
 
   <footer class="app-footer">Transports KENT — Outil interne Planning KENT</footer>
 

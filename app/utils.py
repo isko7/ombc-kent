@@ -195,6 +195,36 @@ def driver_color(driver):
     return DRIVER_COLOR_PALETTE[(driver.get("id") or 0) % len(DRIVER_COLOR_PALETTE)]
 
 
+def balance_passenger_counts(stops):
+    """Équilibre le nombre de voyageurs des arrêts du Billet Collectif.
+
+    Quand tout le monde est ramassé à plusieurs endroits puis déposé au même
+    point (N prises en charge -> 1 dépose), la dépose porte forcément le
+    total des prises en charge. Symétriquement, un ramassage unique suivi de
+    plusieurs déposes porte le total des déposes.
+
+    L'arrêt « agrégé » est donc recalculé, jamais saisi. Les autres cas
+    (1 <-> 1, ou N <-> N) restent ambigus : on n'y touche pas.
+
+    Modifie `stops` sur place et renvoie l'index recalculé, ou None.
+    """
+    pickups = [s for s in stops if s.get("stop_type") == "prise_en_charge"]
+    dropoffs = [s for s in stops if s.get("stop_type") == "depose"]
+
+    def total(group):
+        return sum(int(s.get("passenger_count") or 1) for s in group)
+
+    if len(dropoffs) == 1 and len(pickups) >= 2:
+        aggregated = dropoffs[0]
+        aggregated["passenger_count"] = total(pickups)
+    elif len(pickups) == 1 and len(dropoffs) >= 2:
+        aggregated = pickups[0]
+        aggregated["passenger_count"] = total(dropoffs)
+    else:
+        return None
+    return stops.index(aggregated)
+
+
 def shuttle_number(value):
     """Le champ « Numéro de navette » ne contient que le numéro ('3'), mais
     on tolère une saisie du type 'Navette 3' pour ne pas afficher
@@ -215,3 +245,4 @@ def register_jinja_filters(app):
     app.jinja_env.filters["driver_color"] = driver_color
     app.jinja_env.filters["fmt_week_range"] = fmt_week_range
     app.jinja_env.filters["fmt_hours_minutes"] = fmt_hours_minutes
+    app.jinja_env.filters["shuttle_number"] = shuttle_number

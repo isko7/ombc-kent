@@ -44,30 +44,145 @@ def create_driver(data):
     with get_db() as db:
         cur = db.execute(
             """INSERT INTO drivers (last_name, first_name, email, phone, license_number, active, color,
-               send_itinerary, notes)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               send_itinerary, can_login, is_admin, must_change_password, username,
+               password_hash, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (data["last_name"], data["first_name"], data["email"], data.get("phone"),
              data.get("license_number"), 1 if data.get("active", True) else 0,
-             data.get("color") or None, 1 if data.get("send_itinerary") else 0, data.get("notes")),
+             data.get("color") or None, 1 if data.get("send_itinerary") else 0,
+             1 if data.get("can_login") else 0, 1 if data.get("is_admin") else 0,
+             1 if data.get("must_change_password") else 0, data.get("username") or None,
+             data.get("password_hash") or None, data.get("notes")),
         )
         return cur.lastrowid
 
 
 def update_driver(driver_id, data):
+    """`password_hash` absent du dict = mot de passe inchangé (le formulaire
+    laisse le champ vide quand on ne veut pas le remplacer)."""
+    fields = ["last_name=?", "first_name=?", "email=?", "phone=?", "license_number=?",
+              "active=?", "color=?", "send_itinerary=?", "can_login=?", "is_admin=?",
+              "username=?", "notes=?", "updated_at=?"]
+    params = [data["last_name"], data["first_name"], data["email"], data.get("phone"),
+              data.get("license_number"), 1 if data.get("active", True) else 0,
+              data.get("color") or None, 1 if data.get("send_itinerary") else 0,
+              1 if data.get("can_login") else 0, 1 if data.get("is_admin") else 0,
+              data.get("username") or None, data.get("notes"), now_iso()]
+    if "password_hash" in data:
+        fields.insert(-1, "password_hash=?")
+        params.insert(-1, data.get("password_hash") or None)
+    if "must_change_password" in data:
+        fields.insert(-1, "must_change_password=?")
+        params.insert(-1, 1 if data.get("must_change_password") else 0)
     with get_db() as db:
         db.execute(
-            """UPDATE drivers SET last_name=?, first_name=?, email=?, phone=?, license_number=?,
-               active=?, color=?, send_itinerary=?, notes=?, updated_at=? WHERE id=?""",
-            (data["last_name"], data["first_name"], data["email"], data.get("phone"),
-             data.get("license_number"), 1 if data.get("active", True) else 0,
-             data.get("color") or None, 1 if data.get("send_itinerary") else 0, data.get("notes"),
-             now_iso(), driver_id),
+            "UPDATE drivers SET " + ", ".join(fields) + " WHERE id=?",
+            tuple(params) + (driver_id,),
         )
 
 
 def delete_driver(driver_id):
     with get_db() as db:
         db.execute("DELETE FROM drivers WHERE id = ?", (driver_id,))
+
+
+# ----------------------------------------------- accès à l'application
+def get_driver_by_username(username):
+    """Fiche chauffeur portant cet identifiant de connexion, ou None.
+    L'identifiant est comparé sans tenir compte de la casse."""
+    if not username:
+        return None
+    with get_db() as db:
+        return row_to_dict(db.execute(
+            "SELECT * FROM drivers WHERE LOWER(username) = LOWER(?)", (username,)
+        ).fetchone())
+
+
+def username_taken(username, exclude_driver_id=None):
+    """Vrai si l'identifiant est déjà utilisé par un *autre* chauffeur."""
+    other = get_driver_by_username(username)
+    return bool(other) and other["id"] != exclude_driver_id
+
+
+def count_drivers_with_login():
+    """Nombre de comptes réellement utilisables pour se connecter. Un
+    chauffeur inactif ou sans mot de passe ne compte pas : sinon, retirer
+    l'accès au dernier compte actif passerait le garde-fou de l'écran
+    Chauffeurs et fermerait l'application à tout le monde."""
+    with get_db() as db:
+        row = db.execute(
+            """SELECT COUNT(*) AS n FROM drivers
+               WHERE can_login = 1 AND active = 1 AND password_hash IS NOT NULL"""
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+
+def find_driver_by_name(last_name, first_name):
+    with get_db() as db:
+        return row_to_dict(db.execute(
+            """SELECT * FROM drivers WHERE LOWER(last_name) = LOWER(?)
+               AND LOWER(first_name) = LOWER(?) LIMIT 1""",
+            (last_name, first_name),
+        ).fetchone())
+
+
+def grant_login(driver_id, username, password_hash):
+    """Amorçage : donne l'accès ET les droits d'administration. C'est le
+    compte de secours, il doit pouvoir rouvrir l'accès aux autres."""
+    with get_db() as db:
+        db.execute(
+            """UPDATE drivers SET can_login=1, is_admin=1, must_change_password=0,
+               username=?, password_hash=?, active=1, updated_at=? WHERE id=?""",
+            (username, password_hash, now_iso(), driver_id),
+        )
+
+
+def set_mission_notes(mission_id, notes):
+    """Notes libres d'un ordre de mission. Écrites depuis sa fiche
+    uniquement, et jamais reprises dans le PDF."""
+    with get_db() as db:
+        db.execute("UPDATE missions SET notes=?, updated_at=? WHERE id=?",
+                   (notes or None, now_iso(), mission_id))
+
+
+def set_personal_notes(driver_id, notes):
+    """Bloc-notes personnel, propre à chaque compte."""
+    with get_db() as db:
+        db.execute("UPDATE drivers SET personal_notes=?, updated_at=? WHERE id=?",
+                   (notes or None, now_iso(), driver_id))
+
+
+def set_admin(driver_id, is_admin):
+    """Donne ou retire les droits d'administration, sans rien changer
+    d'autre (ni identifiant, ni mot de passe)."""
+    with get_db() as db:
+        db.execute(
+            "UPDATE drivers SET is_admin=?, updated_at=? WHERE id=?",
+            (1 if is_admin else 0, now_iso(), driver_id),
+        )
+
+
+def count_admins():
+    """Administrateurs réellement capables de se connecter. Sert à refuser
+    le retrait du dernier d'entre eux (plus personne ne pourrait gérer les
+    accès, ni même rouvrir le sien)."""
+    with get_db() as db:
+        row = db.execute(
+            """SELECT COUNT(*) AS n FROM drivers
+               WHERE is_admin = 1 AND can_login = 1 AND active = 1
+               AND password_hash IS NOT NULL"""
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+
+def set_password(driver_id, password_hash, must_change=False):
+    """Change le mot de passe d'une fiche sans toucher au reste."""
+    with get_db() as db:
+        db.execute(
+            """UPDATE drivers SET password_hash=?, must_change_password=?, updated_at=?
+               WHERE id=?""",
+            (password_hash, 1 if must_change else 0, now_iso(), driver_id),
+        )
 
 
 # --------------------------------------------------------------- vehicles
@@ -371,13 +486,18 @@ def create_mission(data):
         reference = _next_reference(db, data["mission_date"])
         cur = db.execute(
             """INSERT INTO missions (reference, mission_name, shuttle_label, driver_id,
-               mission_date, motif, remarks, client_id, emission_date, price, status,
+               mission_date, motif, remarks, client_id, bc_client_name, bc_client_address,
+               bc_client_postal_code, bc_client_city, bc_client_phone,
+               emission_date, price, status,
                om_template_id, bc_template_id, amplitude_minutes, driving_minutes, pause_minutes)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (reference, data.get("mission_name") or None,
              data.get("shuttle_label") or None, data["driver_id"], data["mission_date"],
              data.get("motif") or "Transport Occasionnel",
-             data.get("remarks"), data.get("client_id") or None, data.get("emission_date"),
+             data.get("remarks"), data.get("client_id") or None,
+             data.get("bc_client_name"), data.get("bc_client_address"),
+             data.get("bc_client_postal_code"), data.get("bc_client_city"),
+             data.get("bc_client_phone"), data.get("emission_date"),
              data.get("price"), data.get("status") or "brouillon",
              data.get("om_template_id") or None, data.get("bc_template_id") or None,
              amplitude, driving, pause),
@@ -393,6 +513,11 @@ def _copy_base_fields(src):
     return {
         "driver_id": src["driver_id"],
         "mission_date": src["mission_date"],
+        "bc_client_name": src.get("bc_client_name"),
+        "bc_client_address": src.get("bc_client_address"),
+        "bc_client_postal_code": src.get("bc_client_postal_code"),
+        "bc_client_city": src.get("bc_client_city"),
+        "bc_client_phone": src.get("bc_client_phone"),
         "mission_name": src.get("mission_name"),
         "shuttle_label": src.get("shuttle_label"),
         "motif": src["motif"],
@@ -490,13 +615,18 @@ def update_mission(mission_id, data):
         db.execute(
             """UPDATE missions SET driver_id=?, mission_date=?, mission_name=?,
                shuttle_label=?, motif=?, remarks=?,
-               client_id=?, emission_date=?, price=?, status=?, om_template_id=?, bc_template_id=?,
+               client_id=?, bc_client_name=?, bc_client_address=?, bc_client_postal_code=?,
+               bc_client_city=?, bc_client_phone=?,
+               emission_date=?, price=?, status=?, om_template_id=?, bc_template_id=?,
                amplitude_minutes=?, driving_minutes=?, pause_minutes=?,
                updated_at=? WHERE id=?""",
             (data["driver_id"], data["mission_date"], data.get("mission_name") or None,
              data.get("shuttle_label") or None,
              data.get("motif") or "Transport Occasionnel",
-             data.get("remarks"), data.get("client_id") or None, data.get("emission_date"),
+             data.get("remarks"), data.get("client_id") or None,
+             data.get("bc_client_name"), data.get("bc_client_address"),
+             data.get("bc_client_postal_code"), data.get("bc_client_city"),
+             data.get("bc_client_phone"), data.get("emission_date"),
              data.get("price"), data.get("status") or "brouillon",
              data.get("om_template_id") or None, data.get("bc_template_id") or None,
              amplitude, driving, pause,

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Nouveau chauffeur' if is_new else 'Modifier chauffeur' }}{% endblock %}
+{% block title %}{{ 'Nouvel utilisateur' if is_new else 'Modifier l\'utilisateur' }}{% endblock %}
 {% block content %}
   <div class="page-head">
-    <h1>{{ 'Nouveau chauffeur' if is_new else driver.last_name ~ ' ' ~ driver.first_name }}</h1>
+    <h1>{{ 'Nouvel utilisateur' if is_new else driver.last_name ~ ' ' ~ driver.first_name }}</h1>
   </div>
 
   <form method="post" class="card">
@@ -25,15 +25,15 @@
         <input type="tel" name="phone" value="{{ driver.phone or '' }}">
       </div>
       <div class="field">
-        <label>N° de permis</label>
-        <input type="text" name="license_number" value="{{ driver.license_number or '' }}">
-      </div>
-      <div class="field">
         <label>&nbsp;</label>
         <div class="checkbox-field">
           <input type="checkbox" name="active" id="active" {{ 'checked' if driver.active|default(true) }}>
-          <label for="active" style="margin:0;">Chauffeur actif</label>
+          <label for="active" style="margin:0;">Utilisateur actif</label>
         </div>
+      </div>
+      <div class="field">
+        <label>N° de permis</label>
+        <input type="text" name="license_number" value="{{ driver.license_number or '' }}">
       </div>
       <div class="field">
         <label>&nbsp;</label>
@@ -56,12 +56,80 @@
         {% endfor %}
         <input type="color" id="color-custom" value="{{ driver.color or palette[0] }}" title="Autre couleur">
       </div>
-      <div class="hint">Utilisée pour distinguer ce chauffeur sur l'écran Planning. Laisser sur une couleur de la palette, ou choisir une couleur personnalisée.</div>
+      <div class="hint">Utilisée pour distinguer cette personne sur l'écran Planning. Laisser sur une couleur de la palette, ou choisir une couleur personnalisée.</div>
     </div>
     <div class="field">
       <label>Notes</label>
       <textarea name="notes">{{ driver.notes or '' }}</textarea>
     </div>
+
+    <fieldset class="access-block">
+      <legend>Accès à l'application</legend>
+      <div class="checkbox-field">
+        <input type="checkbox" name="can_login" id="can_login" {{ 'checked' if driver.can_login }}>
+        <label for="can_login" style="margin:0;">Autoriser cet utilisateur à se connecter</label>
+      </div>
+      <div class="hint">
+        Décoché, l'utilisateur n'a aucun accès : il reçoit seulement ses ordres de mission par email.
+        Coché, il se connecte avec l'identifiant et le mot de passe ci-dessous, et consulte —
+        sans rien pouvoir modifier — son planning et ses propres ordres de mission.
+      </div>
+
+      <div class="access-fields" id="access-fields" {{ 'hidden' if not driver.can_login }}>
+        <div class="checkbox-field" style="margin-bottom:6px;">
+          <input type="checkbox" name="is_admin" id="is_admin" {{ 'checked' if driver.is_admin }}>
+          <label for="is_admin" style="margin:0;">Administrateur</label>
+        </div>
+        <div class="hint">
+          Un administrateur gère le personnel, les véhicules, les clients et les templates, et crée ou
+          modifie les ordres de mission. Sans ce droit, l'utilisateur ne voit que son planning et
+          ses propres ordres de mission.
+        </div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label>Identifiant</label>
+            <input type="text" name="username" id="username" value="{{ driver.username or '' }}"
+                   autocomplete="off" autocapitalize="none" spellcheck="false">
+            <div class="hint">Lettres, chiffres, point, tiret ou souligné. Exemple : ikilinc</div>
+          </div>
+          <div class="field">
+            <label>Mot de passe</label>
+            <input type="password" name="password" id="password" autocomplete="new-password"
+                   minlength="8">
+            <div class="hint">
+              {% if driver.password_hash %}Laisser vide pour conserver le mot de passe actuel.
+              {% else %}8 caractères minimum.{% endif %}
+            </div>
+          </div>
+          <div class="field">
+            <label>Confirmer le mot de passe</label>
+            <input type="password" name="password_confirm" id="password_confirm"
+                   autocomplete="new-password" minlength="8">
+          </div>
+        </div>
+        {% if not is_new and driver.username %}
+        <div class="access-reset">
+          {% if driver.must_change_password %}
+          <p class="hint" style="margin:0 0 8px;">
+            <strong>Mot de passe réinitialisé.</strong> Il vaut actuellement l'identifiant
+            « {{ driver.username }} » ; un nouveau sera demandé à la prochaine connexion.
+          </p>
+          {% endif %}
+          <button type="submit" class="btn btn--danger btn--sm"
+                  formmethod="post" formnovalidate
+                  formaction="{{ url_for('drivers.reset_password', driver_id=driver_id) }}"
+                  onclick="return confirm('Réinitialiser le mot de passe ? Il deviendra « {{ driver.username }} » et un nouveau sera demandé à la prochaine connexion.');">
+            Réinitialiser le mot de passe
+          </button>
+          <div class="hint">
+            À utiliser en cas d'oubli : le mot de passe redevient l'identifiant, à communiquer
+            à l'utilisateur, qui devra en choisir un nouveau en se connectant.
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </fieldset>
 
     <div class="btn-row">
       <button type="submit" class="btn btn--primary">Enregistrer</button>
@@ -70,6 +138,16 @@
   </form>
 
   <script>
+    // Les champs d'identifiants ne servent que si l'accès est donné.
+    (function () {
+      var toggle = document.getElementById("can_login");
+      var fields = document.getElementById("access-fields");
+      toggle.addEventListener("change", function () {
+        fields.hidden = !toggle.checked;
+        if (toggle.checked) document.getElementById("username").focus();
+      });
+    })();
+
     (function () {
       var hidden = document.getElementById("color-input");
       var swatches = document.querySelectorAll("#color-swatches .color-swatch");

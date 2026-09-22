@@ -1,19 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Chauffeurs{% endblock %}
+{% block title %}Personnel{% endblock %}
 {% block content %}
   <div class="page-head">
     <div>
-      <h1>Chauffeurs</h1>
-      <div class="sub">{{ drivers|length }} chauffeur{{ 's' if drivers|length != 1 }}</div>
+      <h1>Personnel</h1>
+      <div class="sub">{{ drivers|length }} utilisateur{{ 's' if drivers|length != 1 }}</div>
     </div>
-    <a href="{{ url_for('drivers.new_driver') }}" class="btn btn--primary">+ Nouveau chauffeur</a>
+    <a href="{{ url_for('drivers.new_driver') }}" class="btn btn--primary">+ Nouvel utilisateur</a>
   </div>
 
   <div class="card" style="padding:0;">
     {% if drivers %}
     <table class="data-table">
       <thead>
-        <tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Statut</th><th></th></tr>
+        <tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Statut</th><th>Accès appli</th><th></th></tr>
       </thead>
       <tbody>
         {% for d in drivers %}
@@ -27,10 +27,17 @@
           <td>{{ d.email }}</td>
           <td>{{ d.phone or '—' }}</td>
           <td>{% if d.active %}<span class="badge badge--envoyé">Actif</span>{% else %}<span class="badge badge--inactive">Inactif</span>{% endif %}</td>
+          <td>
+            {% if d.can_login %}
+              <span class="flag flag--access">{{ d.username }}</span>
+              {% if d.is_admin %}<span class="flag flag--admin">admin</span>{% endif %}
+              {% if d.must_change_password %}<span class="flag flag--reset">mdp à renouveler</span>{% endif %}
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
           <td class="row-actions">
             <a href="{{ url_for('drivers.edit_driver', driver_id=d.id) }}" class="btn btn--ghost btn--sm">Modifier</a>
             <form method="post" action="{{ url_for('drivers.delete_driver', driver_id=d.id) }}" style="display:inline"
-                  onsubmit="return confirm('Supprimer ce chauffeur ?');">
+                  onsubmit="return confirm('Supprimer cet utilisateur ?');">
               <button type="submit" class="btn btn--ghost btn--sm" style="color:var(--err-text)">Supprimer</button>
             </form>
           </td>
@@ -40,8 +47,8 @@
     </table>
     {% else %}
     <div class="empty-state">
-      <div>Aucun chauffeur pour le moment.</div>
-      <a href="{{ url_for('drivers.new_driver') }}" class="btn btn--primary">Ajouter le premier chauffeur</a>
+      <div>Aucun utilisateur pour le moment.</div>
+      <a href="{{ url_for('drivers.new_driver') }}" class="btn btn--primary">Ajouter le premier utilisateur</a>
     </div>
     {% endif %}
   </div>

@@ -27,7 +27,7 @@
         </div>
         <div class="field">
           <label>Nom de la mission</label>
-          <input type="text" name="mission_name" value="{{ mission.mission_name or '' }}" placeholder="ex. Sortie scolaire Chartres">
+          <input type="text" name="mission_name" value="{{ mission.mission_name or '' }}">
         </div>
         <div class="field">
           <label>Motif du déplacement</label>
@@ -36,7 +36,7 @@
         <div class="field">
           <label>Numéro de navette</label>
           <input type="text" name="shuttle_label" value="{{ mission.shuttle_label or '' }}" placeholder="ex. 3">
-          <div class="hint">Facultatif — remplace le « X » de « NAVETTE X » dans le récap de facturation.</div>
+          <div class="hint">Facultatif — affiché après « NAVETTE » dans le récap de facturation et sur l&#39;OM.</div>
         </div>
         <div class="field">
           <label>Statut</label>
@@ -70,13 +70,61 @@
         </div>
         <div class="field">
           <label>Date d'émission</label>
-          <input type="date" name="emission_date" value="{{ mission.emission_date or '' }}">
+          <input type="date" name="emission_date" id="emission-date"
+                 value="{{ mission.emission_date or '' }}">
+          {# Un <input type="date"> s'affiche dans le format de la locale du
+             navigateur (parfois mm/jj/aaaa) : on montre à côté la date telle
+             qu'elle sera imprimée sur le BC, qui est toujours en jj/mm/aaaa. #}
+          <div class="hint">Sur le BC : <strong id="emission-date-preview">—</strong></div>
         </div>
         <div class="field">
           <label>Prix du transport</label>
           <input type="text" name="price" value="{{ mission.price or '' }}" placeholder="ex. 480 €">
         </div>
       </div>
+
+      {# Ce qui sera réellement imprimé dans le cadre « Client / donneur
+         d'ordre » du Billet Collectif. Rempli depuis la fiche client à la
+         sélection, puis librement modifiable : les retouches ne valent que
+         pour cette mission, la fiche client n'est pas touchée. #}
+      <fieldset class="bc-client" id="bc-client"
+                {# Guillemets SIMPLES : tojson produit des guillemets doubles, qui
+                   refermeraient l'attribut. Jinja échappe l'apostrophe en '. #}
+                data-clients='{{ clients_by_id | tojson }}'>
+        <legend>Coordonnées imprimées sur le Billet Collectif</legend>
+        <div class="hint" style="margin-bottom:12px;">
+          Reprises de la fiche client au moment de la sélection. Les modifier ici n'affecte que
+          ce Billet Collectif — la fiche client reste inchangée.
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Nom</label>
+            <input type="text" name="bc_client_name" value="{{ mission.bc_client_name or '' }}">
+          </div>
+          <div class="field">
+            <label>Adresse</label>
+            <input type="text" name="bc_client_address" value="{{ mission.bc_client_address or '' }}">
+          </div>
+          <div class="field">
+            <label>Code postal</label>
+            <input type="text" name="bc_client_postal_code" value="{{ mission.bc_client_postal_code or '' }}">
+          </div>
+          <div class="field">
+            <label>Ville</label>
+            <input type="text" name="bc_client_city" value="{{ mission.bc_client_city or '' }}">
+          </div>
+          <div class="field">
+            <label>Téléphone / Email</label>
+            <input type="text" name="bc_client_phone" value="{{ mission.bc_client_phone or '' }}">
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:4px;">
+          <button type="button" id="bc-client-reset" class="btn btn--secondary btn--sm">
+            ↻ Reprendre la fiche client
+          </button>
+          <span class="hint" style="align-self:center;">Annule les retouches faites ci-dessus.</span>
+        </div>
+      </fieldset>
 
       {# Création rapide d'un client sans quitter la saisie de la mission.
          Ce ne sont pas des <form> imbriqués : les champs sont envoyés en
@@ -151,7 +199,10 @@
         </tbody>
       </table>
       <button type="button" id="add-stop-row" class="btn btn--secondary btn--sm add-row-btn">+ Ajouter un arrêt</button>
-      <div class="hint" style="margin-top:8px;">Astuce : entrez d'abord la prise en charge puis les dépose (ou l'inverse), dans l'ordre chronologique — c'est ce qui alimente le tableau "Trajet" de l'OM ci-dessous via le bouton de génération.</div>
+      <div class="hint" style="margin-top:8px;">Voyageurs : si tous convergent vers un seul arrêt
+        (plusieurs prises en charge pour une dépose, ou l'inverse), cet arrêt-là porte
+        automatiquement la somme des autres et n'est pas saisissable.<br>
+        Astuce : entrez d'abord la prise en charge puis les dépose (ou l'inverse), dans l'ordre chronologique — c'est ce qui alimente le tableau "Trajet" de l'OM ci-dessous via le bouton de génération.</div>
     </div>
 
     <div class="card">

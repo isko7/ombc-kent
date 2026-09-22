@@ -8,6 +8,20 @@ Déployée sur **Vercel** (fonctions serverless), base **MySQL**.
 
 ## Ce que ça fait
 
+- **Connexion obligatoire, deux niveaux de droits** : toute l'application
+  est protégée par un identifiant / mot de passe. Les seuls comptes sont des
+  **fiches chauffeur** : dans *Personnel*, cocher « Autoriser ce chauffeur à
+  se connecter » et lui donner un identifiant + un mot de passe. Un chauffeur
+  sans accès n'a aucun compte — il reçoit seulement ses ordres de mission par
+  email.
+  - **chauffeur** : consulte, en **lecture seule**, son planning et ses
+    propres ordres de mission (détail + PDF). Les écrans Personnel /
+    Véhicules / Clients / Templates lui sont fermés et masqués du menu ;
+    les OM des autres chauffeurs répondent 404.
+  - **administrateur** (case « Administrateur » de la fiche) : accès
+    complet, y compris la gestion des accès. Il peut **réinitialiser le mot
+    de passe** d'un chauffeur d'un bouton : le mot de passe redevient
+    l'identifiant, et un nouveau est exigé à la connexion suivante.
 - **Chauffeurs / Véhicules / Clients** : liste + fiche + CRUD complet. Ils
   alimentent les menus déroulants partout où ils sont utilisés.
 - **Ordres de mission** : un formulaire unique avec les **arrêts du Billet
@@ -43,11 +57,14 @@ véhicules, clients et missions.
 | HTML → PDF | **Chrome headless** (`api/render_pdf.js`, `@sparticuz/chromium`) | 2ᵉ fonction serverless Node, appelée en HTTP interne par Flask. Les règles CSS `@page` des templates sont respectées (`preferCSSPageSize`). En local : `wkhtmltopdf`. |
 | Fusion OM + PJ + BC | **pypdf** | Les pièces jointes sont stockées en base (`LONGBLOB`). |
 | Email | **smtplib** (stdlib) + option **MSAL/OAuth2** pour Microsoft 365 | `SMTP_AUTH_METHOD=basic` ou `oauth2_o365`. |
+| Authentification | **JWT** (`PyJWT`, HS256) dans un cookie HttpOnly + hachage `pbkdf2:sha256` (Werkzeug) | `app/auth.py`. Les comptes sont les fiches chauffeur autorisées ; droits et accès relus en base à chaque requête (révocation immédiate). |
+| Droits | liste blanche `app/auth.py:DRIVER_ENDPOINTS` | Un chauffeur non administrateur n'atteint que ces points d'entrée, tous en lecture. Tout écran ajouté plus tard est donc réservé aux administrateurs par défaut. |
 
 ## Schéma de données
 
 ```
-drivers        chauffeurs
+drivers        chauffeurs (+ accès appli : can_login, is_admin,
+               must_change_password, username, password_hash)
 vehicles       véhicules
 clients        donneurs d'ordre, réutilisables
 templates      gabarits OM/BC (type, html, version, actif)
@@ -86,6 +103,9 @@ Dans *Project → Settings → Environment Variables* :
 | `SECRET_KEY` | une chaîne aléatoire |
 | `SEED_SECRET` | une chaîne aléatoire (pour la route d'initialisation, voir §3) |
 | `CALENDAR_FEED_TOKEN` | une chaîne aléatoire (active le flux iCalendar partageable de l'écran Planning) |
+| `JWT_SECRET` | une chaîne aléatoire (signature des sessions ; à défaut `SECRET_KEY` est réutilisée). La changer déconnecte tout le monde |
+| `JWT_TTL_HOURS` | durée d'une session en heures (défaut `168`, soit 7 jours) |
+| `BOOTSTRAP_PASSWORD` | mot de passe du compte créé automatiquement au premier démarrage (voir §3) |
 | `SMTP_AUTH_METHOD` | `basic` (ou `oauth2_o365`) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | identifiants SMTP |
 | `SMTP_FROM_NAME` / `SMTP_FROM_EMAIL` | expéditeur affiché |
@@ -164,7 +184,47 @@ pip install -r requirements.txt
 $env:DATABASE_URL="mysql://...:3306/db"; python seed.py --demo
 ```
 
-### 4. Déployer
+### 4. Première connexion
+
+L'application est fermée : il faut un compte pour y entrer. Au démarrage,
+si **aucun** chauffeur ne peut se connecter, l'application en crée un
+automatiquement (`ensure_login_access()` dans `app/seeding.py`) :
+
+| | Valeur par défaut | Variable |
+|---|---|---|
+| Chauffeur | Ismail KILINC (fiche créée si absente) | `BOOTSTRAP_LAST_NAME` / `BOOTSTRAP_FIRST_NAME` |
+| Identifiant | `ikilinc` | `BOOTSTRAP_USERNAME` |
+| Mot de passe | `kent2026` | `BOOTSTRAP_PASSWORD` |
+
+⚠️ **Changez ce mot de passe dès la première connexion** (*Chauffeurs* → sa
+fiche → *Accès à l'application*), ou définissez `BOOTSTRAP_PASSWORD` avant
+le premier démarrage.
+
+Ensuite, pour ouvrir l'accès à un autre chauffeur : *Personnel* → sa fiche
+→ **Accès à l'application** → cocher « Autoriser ce chauffeur à se
+connecter », saisir un identifiant et un mot de passe (8 caractères
+minimum). Cocher en plus **Administrateur** lui donne les pleins droits ;
+sans cette case, il est en lecture seule sur son seul périmètre.
+
+Décocher « Autoriser… » retire l'accès et efface identifiant, mot de passe
+et droits d'administration ; ses sessions en cours sont coupées
+immédiatement, comme lors d'un changement de mot de passe.
+
+**Mot de passe oublié** : sur la fiche du chauffeur, bouton *Réinitialiser
+le mot de passe*. Le mot de passe redevient son identifiant (à lui
+communiquer), et l'application le bloque sur l'écran « choisissez un nouveau
+mot de passe » tant qu'il n'en a pas saisi un autre. Chacun peut aussi
+changer le sien à tout moment en cliquant son nom dans la barre du haut.
+
+Quatre garde-fous évitent de se retrouver dehors : on ne peut retirer ni son
+propre accès, ni celui du dernier compte capable de se connecter, ni ses
+propres droits d'administration, ni ceux du dernier administrateur.
+
+Les routes qui portent déjà leur propre secret restent hors connexion :
+`/admin/*` (`SEED_SECRET`) et le flux `/planning/calendrier.ics`
+(`CALENDAR_FEED_TOKEN`, appelé par l'application Calendrier du téléphone).
+
+### 5. Déployer
 
 `git push` sur la branche suivie par Vercel, ou `vercel --prod`.
 
@@ -200,6 +260,7 @@ app/
   config.py            configuration (.env / variables Vercel)
   db.py               connexion MySQL + schéma
   repo.py             accès aux données (SQL brut)
+  auth.py             authentification : JWT, mots de passe, garde-fou global
   pdf_service.py       rendu Jinja2 -> HTML -> PDF -> fusion pypdf
   email_service.py     envoi SMTP (basic ou OAuth2 O365)
   ical_service.py       génération du flux iCalendar (planning)
@@ -208,7 +269,7 @@ app/
   templates/           pages Jinja2 (interface web)
   templates_data/      sources HTML/Jinja2 par défaut de l'OM et du BC
   static/              CSS, JS, logo
-seed.py                 amorçage (schéma + templates + option --demo)
+seed.py                 amorçage (schéma + templates + compte d'accès + option --demo)
 run.py                  serveur de dev Flask
 vercel.json             config des fonctions + réécritures
 requirements.txt        dépendances Python
