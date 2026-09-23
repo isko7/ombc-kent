@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ mission.reference }}{% endblock %}
 {% block content %}
+  {# Pas dans le panneau d'une mission liée : « Aperçu PDF » y reste un lien. #}
+  {% if not embed %}{% include "missions/_pdf_tools.html" %}{% endif %}
   <div class="card mission-hero">
     <div>
       <div class="ref">{{ mission.reference }}</div>
@@ -15,7 +17,8 @@
       {% endif %}
     </div>
     <div class="btn-row" style="margin-top:0;">
-      <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id, inline=1) }}" target="_blank" class="btn btn--secondary">👁 Aperçu PDF</a>
+      <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id, inline=1) }}" target="_blank" class="btn btn--secondary"
+         data-pdf-preview data-pdf-title="Aperçu PDF — {{ mission.mission_name or mission.reference }}">👁 Aperçu PDF</a>
       <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id) }}" class="btn btn--secondary">⬇ Télécharger PDF</a>
       {% if is_admin %}
       <a href="{{ url_for('missions.email_mission', mission_id=mission.id) }}" class="btn btn--primary">✉ Envoyer par email</a>
@@ -122,60 +125,14 @@
     {% endif %}
   </div>
 
-  <div class="card">
-    <h2>Pièces jointes <span style="font-weight:400; text-transform:none; letter-spacing:0;">(insérées dans le PDF final)</span></h2>
-    {% for a in mission.attachments %}
-    <div class="attachment-item">
-      <div>
-        <div class="name">{{ a.filename }}</div>
-        <div class="pos">
-          {% if a.insert_after_page == 0 %}Avant l'OM
-          {% elif a.insert_after_page >= 9999 %}Après le BC
-          {% else %}Après l'OM, avant le BC (page 2)
-          {% endif %}
-        </div>
-      </div>
-      {% if is_admin %}
-      <form method="post" action="{{ url_for('missions.delete_attachment', mission_id=mission.id, attachment_id=a.id) }}"
-            onsubmit="return confirm('Supprimer cette pièce jointe ?');">
-        <button type="submit" class="btn btn--ghost btn--sm" style="color:var(--err-text)">Retirer</button>
-      </form>
-      {% endif %}
-    </div>
-    {% else %}
-    <div class="hint" style="margin-bottom:14px;">Aucune pièce jointe. Idéal pour joindre le plan de dépose/ramassage d'origine en page 2.</div>
-    {% endfor %}
+  {% from "missions/_attachments.html" import attachments_card %}
+  {{ attachments_card(mission, positions, is_admin) }}
 
-    {% if is_admin %}
-    <form method="post" action="{{ url_for('missions.upload_attachment', mission_id=mission.id) }}" enctype="multipart/form-data"
-          id="attach-form" style="margin-top:10px;">
-      <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
-        <div class="field" style="margin:0; flex:1; min-width:min(260px, 100%);">
-          <label>Fichier (PDF, PNG, JPG)</label>
-          <div id="attach-dropzone" class="dropzone">
-            <input type="file" id="attach-file" name="file" accept=".pdf,.png,.jpg,.jpeg" required hidden>
-            <div class="dropzone-hint">Glissez-déposez un fichier ici, ou <span class="dropzone-browse">cliquez pour choisir</span></div>
-            <div id="attach-filename" class="dropzone-filename"></div>
-          </div>
-          <input type="hidden" name="pages" id="attach-pages">
-        </div>
-        <div class="field" style="margin:0; min-width:min(280px, 100%);">
-          <label>Position dans le document final</label>
-          <select name="insert_after_page">
-            {% for value, text in positions %}
-            <option value="{{ value }}" {{ 'selected' if value == 1 }}>{{ text }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <button type="submit" class="btn btn--secondary">Joindre</button>
-      </div>
-      <div id="attach-page-picker" class="attach-page-picker" hidden>
-        <div class="hint">PDF de <span id="attach-page-count"></span> page(s) — cliquez celle(s) à joindre :</div>
-        <div id="attach-thumbs" class="attach-thumbs"></div>
-      </div>
-    </form>
-    {% endif %}
-  </div>
+  {% if is_admin %}
+  {% from "missions/_linked_missions.html" import linked_missions_card, linked_missions_overlays %}
+  {{ linked_missions_card(linked_missions, mission.id, mission.mission_name) }}
+  {{ linked_missions_overlays(url_for('missions.save_mission_links', mission_id=mission.id)) }}
+  {% endif %}
 
   {% if emails and is_admin %}
   <div class="card">
@@ -211,16 +168,6 @@
   </form>
   {% endif %}
 
-  {# PDF.js : uniquement pour prévisualiser/choisir des pages côté navigateur
-     avant l'envoi — si le CDN est bloqué, le picker ne s'affiche pas et le
-     PDF entier est joint (comportement d'avant cette fonctionnalité). #}
-  <script type="module">
-    import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs";
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.mjs";
-    window.pdfjsLib = pdfjsLib;
-    window.dispatchEvent(new Event("pdfjs-ready"));
-  </script>
-  <script src="{{ url_for('static', filename='js/attachment_upload.js') }}"></script>
   <script>
     (function () {
       var btn = document.getElementById("copy-billing");

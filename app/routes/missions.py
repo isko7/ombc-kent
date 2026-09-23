@@ -7,7 +7,7 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from app import repo
-from app.auth import current_user, is_admin
+from app.auth import current_user, is_admin, wants_json
 from app.config import COMPANY, RANDSTAD_EMAIL, GOOGLE_MAPS_API_KEY
 from app.pdf_service import (
     generate_mission_pdf, extract_pdf_pages, PdfGenerationError,
@@ -17,8 +17,9 @@ from app.email_service import send_mission_email, send_bulk_email, EmailError
 from app.routing import estimate_route, format_duration, add_minutes, build_driver_itinerary_url, RoutingError
 from app.routes.settings import get_address_search_provider
 from app.utils import (
-    balance_passenger_counts, fmt_date_full, fmt_date_long, fmt_date_short,
-    fmt_time, legs_time_summary, normalize_time, service_time_range, shuttle_number,
+    balance_passenger_counts, day_label, fmt_date_full, fmt_date_long, fmt_date_short,
+    fmt_hours_minutes, fmt_time, legs_time_summary, normalize_time, service_time_range,
+    shuttle_number,
 )
 
 bp = Blueprint("missions", __name__, url_prefix="/missions")
@@ -136,11 +137,31 @@ def _mission_form_to_data(form):
     balance_passenger_counts(stops)
     data["legs"] = _parse_legs(form)
     data["stops"] = stops
+    data["linked_mission_ids"] = _parse_ids(form.getlist("linked_mission_ids[]"))
     return data
 
 
+def _check_form(data):
+    """Envoi du formulaire OM : (message d'erreur ou None, pièce jointe
+    éventuelle). Le fichier est contrôlé avant d'enregistrer quoi que ce
+    soit, pour ne pas créer une mission à qui il manquerait sa pièce."""
+    if not data["driver_id"] or not data["mission_date"]:
+        return "Chauffeur et date de mission sont obligatoires.", None
+    try:
+        return None, _read_attachment(request.form, request.files)
+    except ValueError as e:
+        return str(e), None
+
+
 def _form_context(mission=None):
+    # Liens renvoyés par le formulaire (erreur de saisie), sinon ceux déjà
+    # enregistrés pour la mission modifiée.
+    linked_ids = mission.get("linked_mission_ids")
+    if linked_ids is None:
+        linked_ids = repo.get_linked_mission_ids(mission["id"]) if mission.get("id") else []
     return {
+        "linked_missions": _linked_rows_for(linked_ids),
+        "positions": ATTACHMENT_POSITIONS,
         "drivers": repo.list_drivers(include_inactive=False),
         "vehicles": repo.list_vehicles(include_inactive=False),
         "clients": repo.list_clients(pinned_first=True),
@@ -157,6 +178,17 @@ def _form_context(mission=None):
         "address_search_provider": get_address_search_provider(),
         "depot_address": f"{COMPANY['address']}, {COMPANY['postal_code']} {COMPANY['city']}",
     }
+
+
+def _add_service_times(missions):
+    """Prise / fin de service et amplitude de chaque mission, calculées
+    depuis ses trajets : colonnes de la liste des OM et des missions liées."""
+    repo.attach_legs(missions)
+    for m in missions:
+        m["service_start"], m["service_end"] = service_time_range(m["legs"])
+        summary = legs_time_summary(m["legs"])
+        m["amplitude_minutes"] = summary["amplitude"] if summary else None
+    return missions
 
 
 @bp.route("/")
@@ -193,11 +225,7 @@ def list_missions_view():
         ascending=(tab == "current"),  # à venir : le plus proche d'abord
         limit=PER_PAGE, offset=(page - 1) * PER_PAGE,
     )
-    repo.attach_legs(missions)
-    for m in missions:
-        m["service_start"], m["service_end"] = service_time_range(m["legs"])
-        summary = legs_time_summary(m["legs"])
-        m["amplitude_minutes"] = summary["amplitude"] if summary else None
+    _add_service_times(missions)
     return render_template(
         "missions/list.html", missions=missions, drivers=repo.list_drivers(), tab=tab,
         total=total, page=page, total_pages=total_pages,
@@ -243,10 +271,13 @@ def estimate_leg_duration():
 def new_mission():
     if request.method == "POST":
         data = _mission_form_to_data(request.form)
-        if not data["driver_id"] or not data["mission_date"]:
-            flash("Chauffeur et date de mission sont obligatoires.", "error")
+        error, attachment = _check_form(data)
+        if error:
+            flash(error, "error")
             return render_template("missions/form.html", is_new=True, **_form_context(data))
         mission_id = repo.create_mission(data)
+        if attachment:
+            repo.add_attachment(mission_id, *attachment)
         flash("Ordre de mission créé.", "success")
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
     return render_template("missions/form.html", is_new=True, **_form_context({
@@ -331,10 +362,83 @@ def detail_mission(mission_id):
         abort(404)
     _require_mission_access(mission)
     emails = repo.list_email_log(mission_id)
+    # ?embed=1 : fiche ouverte dans le panneau flottant d'une mission liée,
+    # sans la barre de navigation (base.html) et en lecture seule —
+    # is_admin=False masque les boutons d'action, comme pour un chauffeur.
+    embed = bool(request.args.get("embed"))
+    admin_view = is_admin() and not embed
+    linked = _linked_rows_for(repo.get_linked_mission_ids(mission_id)) if admin_view else []
     return render_template("missions/detail.html", mission=mission, emails=emails,
                             positions=ATTACHMENT_POSITIONS,
                             billing_summary=_billing_summary(mission),
-                            legs_summary=legs_time_summary(mission["legs"]))
+                            legs_summary=legs_time_summary(mission["legs"]),
+                            linked_missions=linked, embed=embed, is_admin=admin_view)
+
+
+# ---------------------------------------------------------- missions liées
+def _parse_ids(values):
+    return [int(v) for v in values if v.isdigit()]
+
+
+def _name_codes(name):
+    """Codes en tête d'un nom de mission, en majuscules : « 26MONTENEG A »
+    -> {'26MONTENEG'}. Un nom combiné « 26POUILLES A + 26MONTENEG R »
+    compte ses deux parties."""
+    return {part.split()[0].upper() for part in (name or "").split("+") if part.split()}
+
+
+def _link_rows(missions):
+    """Missions au format du tableau « Missions liées » et de la fenêtre de
+    sélection : textes déjà mis en forme (mêmes formats que la liste des
+    OM), affichés tels quels par linked_missions.js."""
+    rows = []
+    for m in _add_service_times(missions):
+        rows.append({
+            "id": m["id"],
+            "name": m.get("mission_name") or m["reference"],
+            "day": day_label(m["mission_date"]),
+            "date": fmt_date_long(m["mission_date"]),
+            "start": fmt_time(m["service_start"]) or "—",
+            "end": fmt_time(m["service_end"]) or "—",
+            "driver": f"{m['driver_last_name']} {m['driver_first_name']}",
+            "amplitude": fmt_hours_minutes(m["amplitude_minutes"]),
+            # Tri du tableau côté navigateur : date, puis prise de service.
+            "sort": f"{m['mission_date']} {m['service_start'] or ''}",
+            "url": url_for("missions.detail_mission", mission_id=m["id"]),
+            "embed_url": url_for("missions.detail_mission", mission_id=m["id"], embed=1),
+        })
+    return rows
+
+
+def _linked_rows_for(ids):
+    return _link_rows(repo.list_missions(ids=ids, ascending=True)) if ids else []
+
+
+@bp.route("/a-lier")
+def link_candidates():
+    """Missions proposées par la fenêtre « Missions liées » (fiche et
+    formulaire OM), en JSON : d'abord celles dont le nom commence par le
+    même code que la mission en cours (?name=), puis toutes les autres,
+    chaque groupe par date et heure de prise de service croissantes.
+    ?exclude= écarte la mission elle-même."""
+    exclude = request.args.get("exclude", type=int)
+    codes = _name_codes(request.args.get("name"))
+    rows = _link_rows([m for m in repo.list_missions(ascending=True) if m["id"] != exclude])
+    for row in rows:
+        row["same_code"] = bool(codes & _name_codes(row["name"]))
+    rows.sort(key=lambda row: not row["same_code"])  # tri stable : l'ordre par date tient
+    return jsonify({"ok": True, "missions": rows})
+
+
+@bp.route("/<int:mission_id>/missions-liees", methods=["POST"])
+def save_mission_links(mission_id):
+    """Enregistre la sélection faite depuis la fiche (dans le formulaire,
+    les liens sont enregistrés avec la mission)."""
+    if not repo.get_mission(mission_id):
+        abort(404)
+    repo.set_mission_links(mission_id, _parse_ids(request.form.getlist("linked_mission_ids[]")))
+    flash("Missions liées enregistrées.", "success")
+    return redirect(url_for("missions.detail_mission", mission_id=mission_id) + "#missions-liees")
 
 
 @bp.route("/<int:mission_id>/modifier", methods=["GET", "POST"])
@@ -344,12 +448,21 @@ def edit_mission(mission_id):
         abort(404)
     if request.method == "POST":
         data = _mission_form_to_data(request.form)
-        if not data["driver_id"] or not data["mission_date"]:
-            flash("Chauffeur et date de mission sont obligatoires.", "error")
+        error, attachment = _check_form(data)
+        if error:
+            flash(error, "error")
             data["id"] = mission_id
+            data["attachments"] = existing["attachments"]
             return render_template("missions/form.html", is_new=False, mission_id=mission_id,
                                     **_form_context(data))
         repo.update_mission(mission_id, data)
+        # Pièces jointes cochées « Retirer » dans le formulaire.
+        for attachment_id in _parse_ids(request.form.getlist("remove_attachment_ids[]")):
+            att = repo.get_attachment(attachment_id)
+            if att and att["mission_id"] == mission_id:
+                repo.delete_attachment(attachment_id)
+        if attachment:
+            repo.add_attachment(mission_id, *attachment)
         flash("Ordre de mission mis à jour.", "success")
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
     return render_template("missions/form.html", is_new=False, mission_id=mission_id,
@@ -389,7 +502,7 @@ def create_return_mission(mission_id):
     new_id = repo.create_return_mission(mission_id)
     if not new_id:
         abort(404)
-    flash("Trajet retour créé (arrêts et trajets inversés) — vérifiez date et horaires.", "success")
+    flash("Trajet retour créé et lié à l'aller (arrêts et trajets inversés) — vérifiez date et horaires.", "success")
     return redirect(url_for("missions.edit_mission", mission_id=new_id))
 
 
@@ -402,6 +515,9 @@ def mission_pdf(mission_id):
     try:
         pdf_bytes, filename = generate_mission_pdf(mission_id)
     except PdfGenerationError as e:
+        # Aperçu dans la visionneuse (fetch) : l'erreur s'y affiche.
+        if wants_json():
+            return jsonify({"ok": False, "error": str(e)}), 502
         flash(str(e), "error")
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
     disposition = "inline" if request.args.get("inline") else "attachment"
@@ -411,38 +527,51 @@ def mission_pdf(mission_id):
     )
 
 
+def _read_attachment(form, files):
+    """Pièce jointe envoyée avec un formulaire — celui de la fiche, ou le
+    formulaire OM qui l'enregistre avec la mission. None sans fichier,
+    sinon les arguments de repo.add_attachment (hors mission) : nom,
+    contenu (pages choisies seulement), type, position. ValueError avec
+    le message à afficher si le fichier est refusé."""
+    file = files.get("file")
+    if not file or not file.filename:
+        return None
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_ATTACHMENT_EXT:
+        raise ValueError("Formats acceptés : PDF, PNG, JPG.")
+    content = file.read()
+    if not content:
+        raise ValueError("Fichier vide.")
+
+    filename = secure_filename(file.filename)
+    pages_spec = form.get("pages", "").strip()
+    if ext == ".pdf" and pages_spec:
+        try:
+            content = extract_pdf_pages(content, pages_spec)
+        except PdfGenerationError as e:
+            raise ValueError(f"Sélection de pages invalide : {e}")
+        filename = f"{Path(filename).stem}_p{pages_spec.replace(',', '+')}.pdf"
+
+    insert_after_page = form.get("insert_after_page", type=int)
+    if insert_after_page is None:
+        insert_after_page = POSITION_AFTER_OM
+    return filename, content, file.mimetype, insert_after_page
+
+
 @bp.route("/<int:mission_id>/pieces-jointes", methods=["POST"])
 def upload_attachment(mission_id):
     mission = repo.get_mission(mission_id)
     if not mission:
         abort(404)
-    file = request.files.get("file")
-    if not file or not file.filename:
+    try:
+        attachment = _read_attachment(request.form, request.files)
+    except ValueError as e:
+        flash(str(e), "error")
+        return redirect(url_for("missions.detail_mission", mission_id=mission_id))
+    if attachment is None:
         flash("Aucun fichier sélectionné.", "error")
         return redirect(url_for("missions.detail_mission", mission_id=mission_id))
-    ext = Path(file.filename).suffix.lower()
-    if ext not in ALLOWED_ATTACHMENT_EXT:
-        flash("Formats acceptés : PDF, PNG, JPG.", "error")
-        return redirect(url_for("missions.detail_mission", mission_id=mission_id))
-    content = file.read()
-    if not content:
-        flash("Fichier vide.", "error")
-        return redirect(url_for("missions.detail_mission", mission_id=mission_id))
-
-    filename = secure_filename(file.filename)
-    pages_spec = request.form.get("pages", "").strip()
-    if ext == ".pdf" and pages_spec:
-        try:
-            content = extract_pdf_pages(content, pages_spec)
-        except PdfGenerationError as e:
-            flash(f"Sélection de pages invalide : {e}", "error")
-            return redirect(url_for("missions.detail_mission", mission_id=mission_id))
-        filename = f"{Path(filename).stem}_p{pages_spec.replace(',', '+')}.pdf"
-
-    insert_after_page = request.form.get("insert_after_page", type=int)
-    if insert_after_page is None:
-        insert_after_page = POSITION_AFTER_OM
-    repo.add_attachment(mission_id, filename, content, file.mimetype, insert_after_page)
+    repo.add_attachment(mission_id, *attachment)
     flash("Pièce jointe ajoutée.", "success")
     return redirect(url_for("missions.detail_mission", mission_id=mission_id))
 

@@ -140,15 +140,28 @@ function googlePlacePredictions(query) {
   });
 }
 
-// Renvoie une liste uniforme {label, name, city}, quel que soit le
-// fournisseur — c'est ce que consomme le rendu de la boîte de suggestions.
+// Précision d'une suggestion Google, dans les termes de la BAN.
+function googleKind(types) {
+  if (types.includes("street_address") || types.includes("premise")) return "housenumber";
+  if (types.includes("route")) return "street";
+  if (types.includes("locality") || types.includes("postal_code")) return "municipality";
+  return "place";
+}
+
+// Renvoie une liste uniforme {label, name, city, kind}, quel que soit le
+// fournisseur — c'est ce que consomment la boîte de suggestions et la
+// vérification des adresses lues (stops_ocr.js). kind : précision du
+// résultat (housenumber, street, municipality…, termes de la BAN).
 async function fetchAddressSuggestions(query) {
   if (addressProvider() === "google" && googleAvailable()) {
     const predictions = await googlePlacePredictions(query);
     return predictions.slice(0, 5).map((p) => {
       const sf = p.structured_formatting || {};
-      const city = (sf.secondary_text || "").split(",")[0].trim();
-      return { label: p.description, name: sf.main_text || p.description, city };
+      const kind = googleKind(p.types || []);
+      // « 62 Rue …  |  Lucé, France » ; pour une commune, son nom est le titre.
+      const city = kind === "municipality" ? (sf.main_text || "")
+        : (sf.secondary_text || "").split(",")[0].trim();
+      return { label: p.description, name: sf.main_text || p.description, city, kind };
     });
   }
   try {
@@ -158,6 +171,7 @@ async function fetchAddressSuggestions(query) {
       label: f.properties.label,
       name: f.properties.name || f.properties.label,
       city: f.properties.city || "",
+      kind: f.properties.type,
     }));
   } catch (e) {
     return []; // hors ligne / API indisponible : on laisse la saisie libre
@@ -484,7 +498,15 @@ function initAddressProviderToggle() {
   const form = document.getElementById("mission-form");
   if (!select || !form) return;
 
+  // Carte repliée par défaut : son titre rappelle le fournisseur choisi.
+  const preview = document.getElementById("address-provider-preview");
+  const showPreview = () => {
+    if (preview) preview.textContent = "— " + select.selectedOptions[0].textContent;
+  };
+  showPreview();
+
   select.addEventListener("change", async () => {
+    showPreview();
     if (status) status.textContent = "Enregistrement…";
     try {
       const body = new FormData();
@@ -535,6 +557,17 @@ function fillBcClientFrom(clientId) {
   BC_FIELDS.forEach((f) => {
     if (inputs[f]) inputs[f].value = client ? (client[f] || "") : "";
   });
+  updateBcClientPreview();
+}
+
+// Le cadre est replié par défaut : son titre rappelle le nom et la ville
+// qui seront imprimés.
+function updateBcClientPreview() {
+  const preview = document.getElementById("bc-client-preview");
+  if (!preview) return;
+  const inputs = bcClientInputs();
+  const parts = ["name", "city"].map((f) => inputs[f] && inputs[f].value.trim()).filter(Boolean);
+  preview.textContent = parts.length ? "— " + parts.join(", ") : "— vide";
 }
 
 function registerClient(id, client) {
@@ -567,6 +600,9 @@ function initBcClient() {
   const inputs = bcClientInputs();
   const empty = BC_FIELDS.every((f) => inputs[f] && !inputs[f].value.trim());
   if (empty && select.value) fillBcClientFrom(select.value);
+
+  box.addEventListener("input", updateBcClientPreview);
+  updateBcClientPreview();
 }
 
 // Un <input type="date"> s'affiche selon la locale du navigateur (parfois

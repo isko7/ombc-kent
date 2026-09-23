@@ -5,9 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Planning KENT{% endblock %} — Transports KENT</title>
   {% include "_favicons.html" %}
+  {% include "_theme.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body{% if embed %} class="is-embed"{% endif %}>
+  {# embed : page affichée dans le panneau flottant d'une mission liée
+     (missions/_linked_missions.html) — le contenu seul, sans barre du haut,
+     messages (ils reviennent à la page principale), bloc-notes ni pied. #}
+  {% if not embed %}
   <div class="topbar">
     <div class="topbar__brand">
       <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Transports KENT">
@@ -30,6 +35,24 @@
     </nav>
     {% if current_user %}
     <div class="topbar__user">
+      {# Bascule clair / sombre, gérée par _theme.html (qui met aussi à jour
+         le libellé selon le thème affiché). #}
+      <button type="button" id="theme-toggle" class="topbar__icon-btn"
+              title="Passer en mode sombre" aria-label="Passer en mode sombre">
+        {# Lune (passer en sombre) ou soleil (passer en clair) : le CSS
+           n'affiche que celle du thème proposé. #}
+        <svg class="theme-toggle__moon" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/>
+        </svg>
+        <svg class="theme-toggle__sun" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+        </svg>
+      </button>
       <button type="button" id="notes-open" class="topbar__icon-btn" title="Mes notes"
               aria-label="Mes notes" aria-expanded="false" aria-controls="notes-panel">
         {# Bloc-notes : un carnet avec deux lignes de texte. #}
@@ -48,8 +71,10 @@
     </div>
     {% endif %}
   </div>
+  {% endif %}
 
   <div class="container {% block container_class %}{% endblock %}">
+    {% if not embed %}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
@@ -57,11 +82,12 @@
         {% endfor %}
       {% endif %}
     {% endwith %}
+    {% endif %}
 
     {% block content %}{% endblock %}
   </div>
 
-  {% if current_user %}
+  {% if current_user and not embed %}
   {# Bloc-notes personnel : panneau ancré, pas une fenêtre modale — il doit
      rester ouvert pendant qu'on navigue d'un écran à l'autre. Son état est
      mémorisé par le navigateur et rejoué au chargement (voir notes.js). #}
@@ -82,7 +108,9 @@
   <script src="{{ url_for('static', filename='js/notes.js') }}"></script>
   {% endif %}
 
+  {% if not embed %}
   <footer class="app-footer">Transports KENT — Outil interne Planning KENT</footer>
+  {% endif %}
 
   <script>
     // Mobile : les tableaux s'affichent en cartes empilées, chaque cellule

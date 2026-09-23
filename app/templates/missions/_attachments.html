@@ -1,0 +1,87 @@
+{# Pièces jointes d'un OM, partagées par la fiche et le formulaire.
+
+   Sur la fiche, chaque action part aussitôt (formulaires d'ajout et de
+   retrait). Dans le formulaire OM (form_mode), tout s'enregistre avec la
+   mission : les champs du fichier font partie du formulaire principal
+   (multipart), et « Retirer » est une case cochée jusqu'à l'enregistrement.
+   S'y ajoute la lecture des arrêts sur la page choisie (stops_ocr.js). #}
+{% macro attachments_card(mission, positions, can_edit, form_mode=False) %}
+<div class="card" id="pieces-jointes">
+  <h2>Pièces jointes <span style="font-weight:400; text-transform:none; letter-spacing:0;">(insérées dans le PDF final)</span></h2>
+  {% for a in mission.attachments or [] %}
+  <div class="attachment-item">
+    <div>
+      <div class="name">{{ a.filename }}</div>
+      <div class="pos">
+        {% if a.insert_after_page == 0 %}Avant l'OM
+        {% elif a.insert_after_page >= 9999 %}Après le BC
+        {% else %}Après l'OM, avant le BC (page 2)
+        {% endif %}
+      </div>
+    </div>
+    {% if form_mode %}
+    <label class="attachment-remove" title="Retirée à l'enregistrement de l'ordre de mission">
+      <input type="checkbox" name="remove_attachment_ids[]" value="{{ a.id }}"> Retirer
+    </label>
+    {% elif can_edit %}
+    <form method="post" action="{{ url_for('missions.delete_attachment', mission_id=mission.id, attachment_id=a.id) }}"
+          onsubmit="return confirm('Supprimer cette pièce jointe ?');">
+      <button type="submit" class="btn btn--ghost btn--sm" style="color:var(--err-text)">Retirer</button>
+    </form>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="hint" style="margin-bottom:14px;">Aucune pièce jointe. Idéal pour joindre le plan de dépose/ramassage d'origine en page 2.</div>
+  {% endfor %}
+
+  {% if can_edit %}
+  {% set upload_fields %}
+      <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+        <div class="field" style="margin:0; flex:1; min-width:min(260px, 100%);">
+          <label>{{ 'Ajouter un fichier' if form_mode else 'Fichier' }} (PDF, PNG, JPG)</label>
+          <div id="attach-dropzone" class="dropzone">
+            <input type="file" id="attach-file" name="file" accept=".pdf,.png,.jpg,.jpeg" {{ '' if form_mode else 'required' }} hidden>
+            <div class="dropzone-hint">Glissez-déposez un fichier ici, ou <span class="dropzone-browse">cliquez pour choisir</span></div>
+            <div id="attach-filename" class="dropzone-filename"></div>
+          </div>
+          {# Le fichier en entier, en grand, dans un panneau flottant (pdf_viewer.js). #}
+          <button type="button" class="btn btn--ghost btn--sm attach-zoom" id="attach-zoom" hidden>🔍 Agrandir</button>
+          <input type="hidden" name="pages" id="attach-pages">
+        </div>
+        <div class="field" style="margin:0; min-width:min(280px, 100%);">
+          <label>Position dans le document final</label>
+          <select name="insert_after_page">
+            {% for value, text in positions %}
+            <option value="{{ value }}" {{ 'selected' if value == 1 }}>{{ text }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if not form_mode %}
+        <button type="submit" class="btn btn--secondary">Joindre</button>
+        {% endif %}
+      </div>
+      <div id="attach-page-picker" class="attach-page-picker" hidden>
+        <div class="hint">PDF de <span id="attach-page-count"></span> page(s) — cliquez celle(s) à joindre :</div>
+        <div id="attach-thumbs" class="attach-thumbs"></div>
+      </div>
+      {% if form_mode %}
+      <div class="hint" style="margin-top:8px;">Le fichier est joint à l'enregistrement de l'ordre de mission.</div>
+      {# Affiché dès qu'un fichier est choisi (stops_ocr.js). #}
+      <div class="attach-ocr" data-stops-ocr hidden>
+        <button type="button" class="btn btn--secondary btn--sm" data-stops-ocr-run>🔍 Lire les arrêts de la page</button>
+        <span class="hint" data-stops-ocr-status aria-live="polite"></span>
+      </div>
+      {% endif %}
+  {% endset %}
+  {% if form_mode %}
+  <div style="margin-top:10px;">{{ upload_fields }}</div>
+  {% else %}
+  <form method="post" action="{{ url_for('missions.upload_attachment', mission_id=mission.id) }}" enctype="multipart/form-data"
+        id="attach-form" style="margin-top:10px;">{{ upload_fields }}</form>
+  {% endif %}
+
+  {# PDF.js et la visionneuse : missions/_pdf_tools.html, inclus par la page. #}
+  <script src="{{ url_for('static', filename='js/attachment_upload.js') }}"></script>
+  {% endif %}
+</div>
+{% endmacro %}

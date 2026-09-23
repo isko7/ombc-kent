@@ -1,0 +1,59 @@
+{# Missions liées : la section, partagée par la fiche OM et le formulaire,
+   et sa fenêtre de sélection. Le comportement est dans
+   static/js/linked_missions.js. #}
+
+{# Le tableau est rempli par le script, depuis `rows` (voir
+   routes/missions.py:_link_rows) : une seule mise en forme des lignes, que
+   la section vienne de la base ou d'une sélection pas encore enregistrée. #}
+{% macro linked_missions_card(rows, mission_id=None, mission_name=None, form_mode=False) %}
+<div class="card linked-card" id="missions-liees" data-linked-missions
+     data-candidates-url="{{ url_for('missions.link_candidates') }}"
+     data-exclude="{{ mission_id or '' }}" data-name="{{ mission_name or '' }}"
+     {%- if form_mode %} data-form-mode{% endif %}>
+  <h2>
+    <span>Missions liées</span>
+    <button type="button" class="btn btn--secondary btn--sm" data-linked-open>🔗 Lier des missions</button>
+  </h2>
+  <table class="data-table" data-linked-table hidden>
+    <thead>
+      <tr><th>Nom</th><th>Date</th><th>Prise de service</th><th>Fin de service</th><th>Chauffeur</th><th>Amplitude</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div class="hint" data-linked-empty hidden>Aucune mission liée.</div>
+  {% if form_mode %}
+  {# Enregistrés avec la mission. Écrits ici plutôt que par le script : si
+     le JavaScript échoue, les liens existants ne sont pas effacés. #}
+  <div data-linked-inputs>
+    {% for r in rows %}<input type="hidden" name="linked_mission_ids[]" value="{{ r.id }}">{% endfor %}
+  </div>
+  {% endif %}
+  <script type="application/json" data-linked-rows>{{ rows | tojson }}</script>
+</div>
+{% endmacro %}
+
+{# À placer hors de tout <form> (celui de la sélection ne peut pas être
+   imbriqué). Avec `save_url` (fiche), la sélection s'enregistre aussitôt ;
+   sans (formulaire), elle ne fait que mettre à jour la section. #}
+{% macro linked_missions_overlays(save_url=None) %}
+<dialog class="linked-dialog" data-linked-dialog aria-labelledby="linked-dialog-title">
+  <form class="linked-dialog__form" {% if save_url %}method="post" action="{{ save_url }}"{% else %}method="dialog"{% endif %}>
+    <div class="linked-dialog__head">
+      <h2 id="linked-dialog-title">Missions liées</h2>
+      <button type="button" class="linked-dialog__close" data-linked-close aria-label="Fermer">&times;</button>
+    </div>
+    <input type="text" class="linked-dialog__filter" data-linked-filter autocomplete="off"
+           placeholder="Filtrer : nom, date, chauffeur…" aria-label="Filtrer les missions">
+    <div class="linked-dialog__list" data-linked-list></div>
+    <div class="linked-dialog__foot">
+      <span class="hint" data-linked-count></span>
+      <button type="button" class="btn btn--ghost" data-linked-close>Annuler</button>
+      <button type="submit" class="btn btn--primary" data-linked-submit disabled>{{ 'Enregistrer' if save_url else 'Valider' }}</button>
+    </div>
+  </form>
+</dialog>
+
+{# La fiche d'une mission liée s'ouvre dans un panneau flottant, créé par
+   linked_missions.js (floating_panel.js, chargé par _pdf_tools.html). #}
+<script src="{{ url_for('static', filename='js/linked_missions.js') }}"></script>
+{% endmacro %}

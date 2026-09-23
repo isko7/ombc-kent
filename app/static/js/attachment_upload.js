@@ -1,23 +1,12 @@
 // Pièce jointe : glisser-déposer + choix des pages d'un PDF à joindre.
 //
 // Le rendu des miniatures se fait entièrement dans le navigateur via
-// PDF.js (chargé en <script type="module"> dans missions/detail.html) :
+// PDF.js (chargé en <script type="module"> dans missions/_attachments.html) :
 // aucun envoi au serveur tant que l'utilisateur n'a pas choisi les pages
-// et cliqué "Joindre". Si PDF.js ne se charge pas (CDN bloqué), le picker
-// ne s'affiche simplement pas et le PDF entier est joint tel quel.
-
-function waitForPdfJs(timeoutMs) {
-  return new Promise((resolve) => {
-    if (window.pdfjsLib) { resolve(window.pdfjsLib); return; }
-    const start = Date.now();
-    const t = setInterval(() => {
-      if (window.pdfjsLib || Date.now() - start > timeoutMs) {
-        clearInterval(t);
-        resolve(window.pdfjsLib || null);
-      }
-    }, 100);
-  });
-}
+// et cliqué "Joindre" (fiche) ou enregistré la mission (formulaire OM).
+// Si PDF.js ne se charge pas (CDN bloqué), le picker ne s'affiche
+// simplement pas et le PDF entier est joint tel quel. waitForPdfJs et la
+// visionneuse (« Agrandir ») viennent de pdf_viewer.js.
 
 function initAttachmentUpload() {
   const dropzone = document.getElementById("attach-dropzone");
@@ -29,7 +18,13 @@ function initAttachmentUpload() {
   const pickerBox = document.getElementById("attach-page-picker");
   const thumbsEl = document.getElementById("attach-thumbs");
   const pageCountEl = document.getElementById("attach-page-count");
-  const form = document.getElementById("attach-form");
+  // Formulaire d'ajout de la fiche, ou formulaire OM tout entier.
+  const form = fileInput.form;
+  const zoomBtn = document.getElementById("attach-zoom");
+  if (zoomBtn) zoomBtn.addEventListener("click", () => {
+    const file = fileInput.files[0];
+    if (file) KentPdfViewer.show({ title: file.name, file });
+  });
 
   let selectedPages = new Set();
 
@@ -60,9 +55,13 @@ function initAttachmentUpload() {
 
   function handleFile(file) {
     filenameEl.textContent = file.name;
+    if (zoomBtn) zoomBtn.hidden = false;
     resetPicker();
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
     if (isPdf) renderPdfPicker(file);
+    // Pour la lecture des arrêts (stops_ocr.js) : un glisser-déposer
+    // remplit le champ sans déclencher son événement `change`.
+    fileInput.dispatchEvent(new CustomEvent("attachment-file"));
   }
 
   async function renderPdfPicker(file) {

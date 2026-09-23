@@ -177,6 +177,15 @@ SCHEMA_STATEMENTS = [
         KEY idx_email_mission (mission_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+    # Missions liées entre elles : chaque lien est écrit dans les deux sens
+    # (voir repo._replace_links).
+    """
+    CREATE TABLE IF NOT EXISTS mission_links (
+        mission_id INT NOT NULL,
+        linked_mission_id INT NOT NULL,
+        PRIMARY KEY (mission_id, linked_mission_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
     """
     CREATE TABLE IF NOT EXISTS app_settings (
         setting_key VARCHAR(100) PRIMARY KEY,

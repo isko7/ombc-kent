@@ -94,7 +94,7 @@
         a.className = "planning-event"
           + (ev.continues_next_day ? " planning-event--continues" : "")
           + (ev.continued_from_previous_day ? " planning-event--continued" : "");
-        a.title = ev.title + " — " + ev.driver_name + (ev.vehicle ? " — " + ev.vehicle : "");
+        a.title = ev.title + " — " + ev.driver_label + (ev.vehicle ? " — " + ev.vehicle : "");
         var top = (ev._start / 60) * HOUR_HEIGHT;
         var height = Math.max(18, ((ev._end - ev._start) / 60) * HOUR_HEIGHT);
         var widthPct = 100 / ev._cols;
@@ -109,7 +109,7 @@
             ? '<div class="planning-event__amplitude">(' + escapeHtml(ev.amplitude) + ")</div>"
             : "") +
           '<div class="planning-event__title">' + escapeHtml(ev.title) + "</div>" +
-          '<div class="planning-event__meta">' + escapeHtml(ev.driver_name) + "</div>" +
+          '<div class="planning-event__meta">' + escapeHtml(ev.driver_label) + "</div>" +
           (ev.vehicle ? '<div class="planning-event__vehicle">' + escapeHtml(ev.vehicle) + "</div>" : "");
         col.appendChild(a);
       });
@@ -125,7 +125,7 @@
       a.className = "planning-allday-chip";
       a.style.background = ev.color;
       a.textContent = ev.title;
-      a.title = ev.title + " — " + ev.driver_name;
+      a.title = ev.title + " — " + ev.driver_label;
       slot.appendChild(a);
     });
     if (!anyAllDay) {
