@@ -1,0 +1,16 @@
+{# Outils PDF de la fiche et du formulaire OM, à inclure avant les scripts
+   qui s'en servent :
+   - PDF.js : miniatures des pièces jointes, lecture des arrêts,
+     visionneuse. Chargé en module, donc après la page — les scripts
+     l'attendent via waitForPdfJs (pdf_viewer.js). Si le CDN est bloqué, les
+     miniatures ne s'affichent pas et le PDF entier est joint ;
+   - le panneau flottant (floating_panel.js) et la visionneuse qui s'en sert
+     (« Agrandir », « Aperçu PDF »). #}
+<script type="module">
+  import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.mjs";
+  window.pdfjsLib = pdfjsLib;
+  window.dispatchEvent(new Event("pdfjs-ready"));
+</script>
+<script src="{{ url_for('static', filename='js/floating_panel.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pdf_viewer.js') }}"></script>

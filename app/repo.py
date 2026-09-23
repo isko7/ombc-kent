@@ -350,11 +350,15 @@ _MISSIONS_FROM = """FROM missions m
        WHERE 1=1"""
 
 
-def _missions_filters(driver_id, date_from, date_to, status, name):
+def _missions_filters(driver_id, date_from, date_to, status, name, ids=None):
     """Fragment WHERE + paramètres, partagé par list_missions() et
     count_missions() pour que le total de la pagination corresponde
     exactement aux lignes affichées."""
     q, params = "", []
+    if ids is not None:
+        # Liste vide : aucune mission (« IN () » serait invalide en SQL).
+        q += f" AND m.id IN ({','.join(['?'] * len(ids))})" if ids else " AND 1=0"
+        params.extend(ids)
     if driver_id:
         q += " AND m.driver_id = ?"
         params.append(driver_id)
@@ -375,6 +379,29 @@ def _missions_filters(driver_id, date_from, date_to, status, name):
     return q, params
 
 
+def _sql_time(column):
+    """Heure d'un trajet ramenée au format H:MM en SQL (« 9h30 », « 9 h 30 »
+    -> « 9:30 ») : les heures saisies avant la normalisation à
+    l'enregistrement (utils.normalize_time) sont restées telles quelles."""
+    return f"REPLACE(REPLACE(LOWER({column}), ' ', ''), 'h', ':')"
+
+
+# Pas de « ? » dans le motif (« [01]?[0-9] ») : db.py le prendrait pour un
+# paramètre, d'où l'alternative à trois branches.
+_SQL_VALID_TIME = "REGEXP '^(2[0-3]|[01][0-9]|[0-9]):[0-5][0-9]$'"
+
+# Heure de prise de service, pour trier la liste des OM en base (le tri doit
+# précéder la pagination) : début du premier trajet, dans l'ordre, dont les
+# deux heures sont valides — même règle que utils.service_time_range().
+# Zéro-paddée pour que « 9:30 » passe avant « 10:00 » ; NULL sans horaire.
+_SQL_SERVICE_START = f"""(SELECT LPAD({_sql_time('l.start_time')}, 5, '0')
+       FROM mission_legs l
+       WHERE l.mission_id = m.id
+         AND {_sql_time('l.start_time')} {_SQL_VALID_TIME}
+         AND {_sql_time('l.end_time')} {_SQL_VALID_TIME}
+       ORDER BY l.position LIMIT 1)"""
+
+
 def count_missions(driver_id=None, date_from=None, date_to=None, status=None, name=None):
     where, params = _missions_filters(driver_id, date_from, date_to, status, name)
     with get_db() as db:
@@ -382,12 +409,16 @@ def count_missions(driver_id=None, date_from=None, date_to=None, status=None, na
 
 
 def list_missions(driver_id=None, date_from=None, date_to=None, status=None, name=None,
-                  ascending=False, limit=None, offset=0):
-    where, params = _missions_filters(driver_id, date_from, date_to, status, name)
+                  ascending=False, limit=None, offset=0, ids=None):
+    where, params = _missions_filters(driver_id, date_from, date_to, status, name, ids)
     q = f"""SELECT m.*, d.last_name AS driver_last_name, d.first_name AS driver_first_name,
                    c.name AS client_name
             {_MISSIONS_FROM}{where}"""
-    q += " ORDER BY m.mission_date ASC, m.id ASC" if ascending else " ORDER BY m.mission_date DESC, m.id DESC"
+    # Un même jour se lit toujours dans l'ordre des prises de service, quel
+    # que soit le sens des dates ; les missions sans horaire en tête (NULL
+    # d'abord), comme « toute la journée » sur le planning.
+    q += (f" ORDER BY m.mission_date {'ASC' if ascending else 'DESC'},"
+          f" {_SQL_SERVICE_START} ASC, m.id ASC")
     if limit is not None:
         q += " LIMIT ? OFFSET ?"
         params += [limit, offset]
@@ -417,6 +448,38 @@ def attach_legs(missions):
     for m in missions:
         m["legs"] = by_mission.get(m["id"], [])
     return missions
+
+
+def get_linked_mission_ids(mission_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT linked_mission_id FROM mission_links WHERE mission_id = ?", (mission_id,)
+        ).fetchall()
+    return [r["linked_mission_id"] for r in rows]
+
+
+def _replace_links(db, mission_id, linked_ids):
+    """Remplace les missions liées à `mission_id`. Un lien vaut dans les
+    deux sens : il est écrit A->B et B->A, si bien que « les missions liées
+    à X » se lit par mission_id = X, et qu'un lien retiré depuis l'une des
+    deux missions disparaît aussi de l'autre. La mission elle-même et les
+    identifiants inconnus (mission supprimée entre-temps) sont ignorés."""
+    wanted = {i for i in linked_ids if i != mission_id}
+    if wanted:
+        placeholders = ",".join(["?"] * len(wanted))
+        wanted = [r["id"] for r in db.execute(
+            f"SELECT id FROM missions WHERE id IN ({placeholders})", list(wanted)
+        ).fetchall()]
+    db.execute("DELETE FROM mission_links WHERE mission_id = ? OR linked_mission_id = ?",
+               (mission_id, mission_id))
+    for other in wanted:
+        db.execute("INSERT INTO mission_links (mission_id, linked_mission_id) VALUES (?, ?), (?, ?)",
+                   (mission_id, other, other, mission_id))
+
+
+def set_mission_links(mission_id, linked_ids):
+    with get_db() as db:
+        _replace_links(db, mission_id, linked_ids)
 
 
 def list_missions_for_planning(date_from, date_to, driver_id=None):
@@ -505,6 +568,9 @@ def create_mission(data):
         mission_id = cur.lastrowid
         _replace_legs(db, mission_id, data.get("legs") or [])
         _replace_stops(db, mission_id, data.get("stops") or [])
+        # Absent pour une duplication : les liens ne se copient pas.
+        if data.get("linked_mission_ids") is not None:
+            _replace_links(db, mission_id, data["linked_mission_ids"])
         return mission_id
 
 
@@ -606,6 +672,8 @@ def create_return_mission(mission_id):
                      for l in reversed(src["legs"])]
     data["stops"] = [_copy_stop(s) | {"stop_type": _STOP_TYPE_SWAP.get(s["stop_type"], s["stop_type"])}
                       for s in reversed(src["stops"])]
+    # L'aller et son retour sont liés d'office (section « Missions liées »).
+    data["linked_mission_ids"] = [mission_id]
     return create_mission(data)
 
 
@@ -634,6 +702,8 @@ def update_mission(mission_id, data):
         )
         _replace_legs(db, mission_id, data.get("legs") or [])
         _replace_stops(db, mission_id, data.get("stops") or [])
+        if data.get("linked_mission_ids") is not None:
+            _replace_links(db, mission_id, data["linked_mission_ids"])
 
 
 def _replace_legs(db, mission_id, legs):
@@ -668,6 +738,8 @@ def delete_mission(mission_id):
     with get_db() as db:
         for table in ("mission_legs", "mission_stops", "attachments", "email_log"):
             db.execute(f"DELETE FROM {table} WHERE mission_id = ?", (mission_id,))
+        db.execute("DELETE FROM mission_links WHERE mission_id = ? OR linked_mission_id = ?",
+                   (mission_id, mission_id))
         db.execute("DELETE FROM missions WHERE id = ?", (mission_id,))
 
 

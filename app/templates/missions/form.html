@@ -1,11 +1,14 @@
 {% extends "base.html" %}
 {% block title %}{{ 'Nouvel ordre de mission' if is_new else 'Modifier ' ~ mission.reference }}{% endblock %}
 {% block content %}
+  {% include "missions/_pdf_tools.html" %}
+  {% from "missions/_linked_missions.html" import linked_missions_card, linked_missions_overlays %}
+  {% from "missions/_attachments.html" import attachments_card %}
   <div class="page-head">
     <h1>{{ 'Nouvel ordre de mission' if is_new else 'Modifier ' ~ (mission.reference or '') }}</h1>
   </div>
 
-  <form method="post" id="mission-form" data-estimate-url="{{ url_for('missions.estimate_leg_duration') }}"
+  <form method="post" id="mission-form" enctype="multipart/form-data" data-estimate-url="{{ url_for('missions.estimate_leg_duration') }}"
         data-address-provider="{{ address_search_provider }}"
         data-address-provider-url="{{ url_for('settings.set_address_search_provider') }}"
         data-depot-address="{{ depot_address }}">
@@ -86,12 +89,13 @@
       {# Ce qui sera réellement imprimé dans le cadre « Client / donneur
          d'ordre » du Billet Collectif. Rempli depuis la fiche client à la
          sélection, puis librement modifiable : les retouches ne valent que
-         pour cette mission, la fiche client n'est pas touchée. #}
-      <fieldset class="bc-client" id="bc-client"
+         pour cette mission, la fiche client n'est pas touchée. Replié par
+         défaut (rarement retouché) : le titre rappelle ce qui sera imprimé. #}
+      <details class="bc-client" id="bc-client"
                 {# Guillemets SIMPLES : tojson produit des guillemets doubles, qui
                    refermeraient l'attribut. Jinja échappe l'apostrophe en '. #}
                 data-clients='{{ clients_by_id | tojson }}'>
-        <legend>Coordonnées imprimées sur le Billet Collectif</legend>
+        <summary>Coordonnées imprimées sur le Billet Collectif <span class="bc-client__preview" id="bc-client-preview"></span></summary>
         <div class="hint" style="margin-bottom:12px;">
           Reprises de la fiche client au moment de la sélection. Les modifier ici n'affecte que
           ce Billet Collectif — la fiche client reste inchangée.
@@ -124,7 +128,7 @@
           </button>
           <span class="hint" style="align-self:center;">Annule les retouches faites ci-dessus.</span>
         </div>
-      </fieldset>
+      </details>
 
       {# Création rapide d'un client sans quitter la saisie de la mission.
          Ce ne sont pas des <form> imbriqués : les champs sont envoyés en
@@ -146,20 +150,31 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>Recherche d'adresse <span style="font-weight:400; text-transform:none; letter-spacing:0;">(réglage global, utilisé ci-dessous pour les arrêts)</span></h2>
-      <div class="field" style="max-width:320px;">
-        <label>Fournisseur</label>
-        <select id="address-provider-select">
-          <option value="google" {{ 'selected' if address_search_provider == 'google' }}>Google Maps</option>
-          <option value="gouv" {{ 'selected' if address_search_provider == 'gouv' }}>Base Adresse Nationale (gouv.fr)</option>
-        </select>
-        <span id="address-provider-status" class="hint"></span>
-        {% if not google_maps_api_key %}
-        <div class="hint">Aucune clé Google Maps configurée : la Base Adresse Nationale est utilisée pour l'instant, quel que soit ce réglage.</div>
-        {% endif %}
+    {{ linked_missions_card(linked_missions, mission.id, form_mode=True) }}
+
+    {{ attachments_card(mission, positions, can_edit=True, form_mode=True) }}
+
+    {# Replié par défaut (réglage rarement changé) : le titre rappelle le
+       fournisseur choisi. #}
+    <details class="card notes-card">
+      <summary>
+        Recherche d'adresse <span class="notes-card__sub">(réglage global, utilisé ci-dessous pour les arrêts)</span>
+        <span class="notes-card__preview" id="address-provider-preview"></span>
+      </summary>
+      <div class="notes-card__body">
+        <div class="field" style="max-width:320px; margin-bottom:0;">
+          <label>Fournisseur</label>
+          <select id="address-provider-select">
+            <option value="google" {{ 'selected' if address_search_provider == 'google' }}>Google Maps</option>
+            <option value="gouv" {{ 'selected' if address_search_provider == 'gouv' }}>Base Adresse Nationale (gouv.fr)</option>
+          </select>
+          <span id="address-provider-status" class="hint"></span>
+          {% if not google_maps_api_key %}
+          <div class="hint">Aucune clé Google Maps configurée : la Base Adresse Nationale est utilisée pour l'instant, quel que soit ce réglage.</div>
+          {% endif %}
+        </div>
       </div>
-    </div>
+    </details>
 
     <div class="card">
       <h2>Arrêts — Billet Collectif</h2>
@@ -281,6 +296,8 @@
     </div>
   </form>
 
+  {{ linked_missions_overlays() }}
+
   <template id="stop-row-template">
     <tr>
       <td>
@@ -343,4 +360,5 @@
   <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&language=fr&region=FR"></script>
   {% endif %}
   <script src="{{ url_for('static', filename='js/mission_form.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/stops_ocr.js') }}"></script>
 {% endblock %}

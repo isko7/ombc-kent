@@ -1,0 +1,69 @@
+{# Thème clair / sombre, partagé par base.html et l'écran de connexion.
+
+   Script en ligne, dans le <head> avant la feuille de style : il pose
+   data-theme sur <html> avant le premier affichage. Chargé plus tard,
+   chaque page s'afficherait d'abord en clair avant de basculer.
+
+   Par défaut le thème suit le réglage du système, y compris en direct
+   (bascule jour / nuit automatique du téléphone). Le bouton #theme-toggle
+   de la barre du haut l'inverse ; ce choix est mémorisé par le navigateur,
+   et seulement s'il contredit le système : revenir au thème du système lui
+   rend la main. #}
+<script>
+  (function () {
+    var KEY = "kent.theme";
+    var root = document.documentElement;
+    var system = window.matchMedia("(prefers-color-scheme: dark)");
+
+    function systemTheme() {
+      return system.matches ? "dark" : "light";
+    }
+
+    // localStorage peut lever (navigation privée, cookies bloqués) : le
+    // thème suit alors le système, et la bascule ne vaut que pour la page.
+    function storedTheme() {
+      try {
+        var theme = localStorage.getItem(KEY);
+        return theme === "dark" || theme === "light" ? theme : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    function store(theme) {
+      try {
+        if (theme === systemTheme()) localStorage.removeItem(KEY);
+        else localStorage.setItem(KEY, theme);
+      } catch (e) { /* tant pis */ }
+    }
+
+    function apply(theme) {
+      root.setAttribute("data-theme", theme);
+      var toggle = document.getElementById("theme-toggle");
+      if (toggle) {
+        var label = theme === "dark" ? "Passer en mode clair" : "Passer en mode sombre";
+        toggle.title = label;
+        toggle.setAttribute("aria-label", label);
+      }
+    }
+    function refresh() {
+      apply(storedTheme() || systemTheme());
+    }
+
+    refresh();
+    // Le bouton n'existe pas encore : son libellé suit une fois la page lue.
+    document.addEventListener("DOMContentLoaded", refresh);
+
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest || !e.target.closest("#theme-toggle")) return;
+      var theme = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      store(theme);
+      apply(theme);
+    });
+
+    // Réglage du système modifié, ou bascule faite dans un autre onglet.
+    if (system.addEventListener) system.addEventListener("change", refresh);
+    window.addEventListener("storage", function (e) {
+      if (e.key === KEY) refresh();
+    });
+  })();
+</script>

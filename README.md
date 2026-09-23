@@ -28,9 +28,27 @@ Déployée sur **Vercel** (fonctions serverless), base **MySQL**.
   Collectif** (prises en charge / déposes, adresses, horaires, voyageurs) et
   les **trajets de l'Ordre de Mission** (début / fin / véhicule / trajet),
   avec un bouton « Générer les trajets depuis les arrêts ».
+- **Missions liées** : sur la fiche d'un OM et dans son formulaire, une
+  section liste les missions liées (le lien vaut dans les deux sens). Le
+  bouton « Lier des missions » ouvre une sélection multiple, les missions au
+  même code en tête de nom d'abord (`26MONTENEG A` → `26MONTENEG R`). Un clic
+  sur une mission liée ouvre sa fiche dans un panneau flottant, à côté de la
+  page : les deux restent visibles. « Créer le retour » lie d'office l'aller
+  et son retour.
 - **Génération PDF** : un seul PDF = **OM + pièces jointes + BC**, fusionnés.
   Pièces jointes (PDF/PNG/JPG) insérables avant l'OM, entre l'OM et le BC
-  (page 2, par défaut), ou après le BC.
+  (page 2, par défaut), ou après le BC — depuis la fiche, ou dans le
+  formulaire (jointes à l'enregistrement). « Agrandir » (fichier choisi) et
+  « Aperçu PDF » (OM généré) les affichent en grand dans un panneau
+  flottant, pour comparer avec la page.
+- **Lecture des arrêts** (formulaire OM) : sur la page choisie d'un plan de
+  ramassage / dépose joint, « Lire les arrêts de la page » remplit les
+  arrêts du BC (heure, ville, adresse, voyageurs, sens aller / retour). Le
+  texte du PDF est lu directement s'il en contient ; sinon (scan, PDF
+  « imprimé ») la page passe par un OCR dans le navigateur (Tesseract.js,
+  rien n'est envoyé ailleurs). Chaque adresse est ensuite vérifiée auprès
+  de Google ou de la Base Adresse Nationale (réglage « Recherche
+  d'adresse ») et remplacée par l'adresse officielle si elle correspond.
 - **Envoi par email** : au chauffeur + destinataires en copie, objet et corps
   personnalisables, PDF en pièce jointe, historique des envois.
 - **Templates OM / BC modifiables** : le HTML/Jinja2 qui génère les PDF est
@@ -41,6 +59,9 @@ Déployée sur **Vercel** (fonctions serverless), base **MySQL**.
   personnalisable sur la fiche chauffeur), clic sur une mission → son
   ordre de mission. Flux **iCalendar** partageable, à abonner depuis
   Calendrier (iPhone) ou Google Agenda (Android) — voir `CALENDAR_FEED_TOKEN`.
+- **Mode sombre** : bouton lune / soleil dans la barre du haut. Par défaut,
+  l'application suit le réglage clair / sombre de l'appareil ; le choix fait
+  avec le bouton est mémorisé par le navigateur (donc par appareil).
 
 ## Stack technique
 
@@ -73,6 +94,7 @@ mission_legs   lignes du tableau « Mission » de l'OM
 mission_stops  lignes du tableau du BC
 attachments    fichiers joints (contenu binaire + position d'insertion)
 email_log      historique des envois
+mission_links  missions liées (chaque lien écrit dans les deux sens)
 ```
 
 Détail complet dans `app/db.py` (`SCHEMA_STATEMENTS`).

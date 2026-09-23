@@ -42,6 +42,10 @@ def _build_event(mission, drivers_by_id):
         "title": mission.get("mission_name") or mission["reference"],
         "driver_id": mission["driver_id"],
         "driver_name": driver_name,
+        # Nom affiché sur l'écran Planning : « * » signale un brouillon. Le
+        # flux iCalendar garde driver_name (il marque déjà ces missions
+        # TENTATIVE).
+        "driver_label": driver_name + (" *" if mission["status"] == "brouillon" else ""),
         "color": driver_color(driver or {"id": mission["driver_id"]}),
         "vehicle": " + ".join(vehicles),
         "status": mission["status"],

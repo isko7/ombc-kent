@@ -158,7 +158,7 @@
             {{- ' (' ~ ev.amplitude ~ ')' if ev.amplitude else '' -}}
           </span>
           <span class="planning-chip__title">{{ ev.title }}</span>
-          <span class="planning-chip__meta">{{ ev.driver_name }}</span>
+          <span class="planning-chip__meta">{{ ev.driver_label }}</span>
           {% if ev.vehicle %}<span class="planning-chip__vehicle">{{ ev.vehicle }}</span>{% endif %}
         </a>
         {% endfor %}
