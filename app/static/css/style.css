@@ -327,6 +327,9 @@ table.edit-rows td { position: relative; }
 
 /* Récap du tableau Trajets : km total, heures de conduite, amplitude */
 .legs-summary__sep { color: var(--muted); }
+/* Récap suivi d'un second (temps puis distances) : les deux se touchent,
+   du même écart que celui entre le tableau des trajets et le premier. */
+.legs-summary--joined { margin-bottom: 0; }
 .legs-summary {
   display: flex; gap: 8px 10px; flex-wrap: wrap; font-size: 13px; color: var(--ink);
   background: var(--surface-alt); border: 1px solid var(--line); border-radius: var(--radius);

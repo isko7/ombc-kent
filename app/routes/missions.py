@@ -17,8 +17,8 @@ from app.routing import estimate_route, format_duration, add_minutes, build_driv
 from app.routes.settings import get_address_search_provider
 from app.utils import (
     balance_passenger_counts, day_label, fmt_date_full, fmt_date_long, fmt_date_short,
-    fmt_hours_minutes, fmt_time, legs_time_summary, normalize_time, now_paris,
-    service_time_range, shuttle_number,
+    fmt_hours_minutes, fmt_time, legs_distance_summary, legs_time_summary, normalize_time,
+    now_paris, service_time_range, shuttle_number,
 )
 
 bp = Blueprint("missions", __name__, url_prefix="/missions")
@@ -46,6 +46,10 @@ def _parse_legs(form):
     vehicle_ids = form.getlist("leg_vehicle_id[]")
     labels = form.getlist("leg_label[]")
     relay_drivers = form.getlist("leg_relay_driver_id[]")
+    # Distance estimée par le formulaire (champ caché, rempli au fil de la
+    # saisie par mission_form.js) : on la stocke telle quelle plutôt que de
+    # rappeler le service d'itinéraire à chaque enregistrement.
+    distances = form.getlist("leg_distance_m[]")
     n = max(len(starts), len(ends), len(vehicle_ids), len(labels))
     legs = []
     for i in range(n):
@@ -60,7 +64,9 @@ def _parse_legs(form):
         # Point de contrôle : début = fin, ou une prise/fin de service (dont
         # les heures sont laissées vides, remplies à la main par le chauffeur).
         is_service = l.lower().startswith(("prise de service", "fin de service"))
+        meters = _at(distances, i).strip()
         legs.append({
+            "distance_m": int(meters) if meters.isdigit() else None,
             "start_time": s,
             "end_time": e,
             "vehicle_id": int(v) if (v and v.isdigit()) else None,
@@ -261,6 +267,9 @@ def estimate_leg_duration():
         "ok": True,
         "duration": format_duration(result["duration_s"]),
         "km": round(result["distance_m"] / 1000),
+        # Mètres bruts : c'est ce que le formulaire enregistre, pour que la
+        # somme de plusieurs trajets courts ne parte pas en arrondis.
+        "meters": result["distance_m"],
         "traffic_min": round(result["traffic_delay_s"] / 60),
         "with_traffic_at": result["departure"],
         # Heure estimée, affichée seulement — les champs ne sont pas modifiés.
@@ -374,6 +383,7 @@ def detail_mission(mission_id):
                             positions=ATTACHMENT_POSITIONS,
                             billing_summary=_billing_summary(mission),
                             legs_summary=legs_time_summary(mission["legs"]),
+                            legs_distance=legs_distance_summary(mission["legs"]),
                             linked_missions=linked, embed=embed, is_admin=admin_view)
 
 

@@ -265,6 +265,7 @@
             </td>
             <td>
               <input type="text" name="leg_label[]" value="{{ l.label or '' }}">
+              <input type="hidden" name="leg_distance_m[]" value="{{ l.distance_m if l.distance_m is not none else '' }}">
               <div class="leg-estimate">
                 <button type="button" class="btn btn--ghost btn--sm estimate-leg" data-provider="tomtom" title="Estimer la durée avec le trafic (TomTom)">⏱ TomTom</button>
                 <button type="button" class="btn btn--ghost btn--sm estimate-leg" data-provider="google" title="Estimer la durée avec le trafic (Google Maps)">🗺 Maps</button>
@@ -280,11 +281,22 @@
           {% endfor %}
         </tbody>
       </table>
+      {# Deux lignes, comme sur la fiche : temps, puis distances. Les
+         distances sont estimées au fil de la saisie et enregistrées avec
+         les trajets (champ caché leg_distance_m[]). #}
       <div class="legs-summary" id="legs-summary">
-        <span><strong>Total :</strong> <span id="legs-summary-km">—</span></span>
-        <span><span id="legs-summary-driving">—</span> de conduite</span>
-        <span><span id="legs-summary-pause">—</span> de pause</span>
-        <span>amplitude <span id="legs-summary-amplitude">—</span></span>
+        <span>Amplitude : <strong id="legs-summary-amplitude">—</strong></span>
+        <span class="legs-summary__sep" aria-hidden="true">-</span>
+        <span>Temps de conduite : <strong id="legs-summary-driving">—</strong></span>
+        <span class="legs-summary__sep" aria-hidden="true">-</span>
+        <span>Temps de pause : <strong id="legs-summary-pause">—</strong></span>
+      </div>
+      <div class="legs-summary" id="legs-summary-distance">
+        <span>Distance totale : <strong id="legs-summary-km">—</strong></span>
+        <span class="legs-summary__sep" aria-hidden="true">-</span>
+        <span>Distance à vide : <strong id="legs-summary-km-empty">—</strong></span>
+        <span class="legs-summary__sep" aria-hidden="true">-</span>
+        <span>Distance Transport : <strong id="legs-summary-km-transport">—</strong></span>
       </div>
       <button type="button" id="add-leg-row" class="btn btn--secondary btn--sm add-row-btn">+ Ajouter un trajet</button>
       <div class="hint" style="margin-top:8px;">Début = fin ⇒ point de contrôle (prise/fin de service). <strong>(pause)</strong> : arrêt sans conduite. <strong>(relais)</strong> : changement de chauffeur/véhicule.</div>
@@ -340,6 +352,7 @@
       </td>
       <td>
         <input type="text" name="leg_label[]">
+        <input type="hidden" name="leg_distance_m[]" value="">
         <div class="leg-estimate">
           <button type="button" class="btn btn--ghost btn--sm estimate-leg" data-provider="tomtom" title="Estimer la durée avec le trafic (TomTom)">⏱ TomTom</button>
           <button type="button" class="btn btn--ghost btn--sm estimate-leg" data-provider="google" title="Estimer la durée avec le trafic (Google Maps)">🗺 Maps</button>

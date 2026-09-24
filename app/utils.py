@@ -116,6 +116,43 @@ def legs_time_summary(legs):
     return {"amplitude": amplitude, "driving": driving, "pause": max(0, amplitude - driving)}
 
 
+def legs_distance_summary(legs):
+    """Distances d'une mission, en mètres, à partir des distances estimées
+    de ses trajets (mission_legs.distance_m) :
+    - total     : dépôt -> dépôt, c'est-à-dire la somme de tous les trajets.
+    - à vide    : les trajets dont une extrémité est le dépôt (aller au
+      premier point, retour du dernier point) — personne à bord.
+    - transport : le reste, du premier au dernier point de la prestation.
+
+    Le sens se lit dans le libellé (« A → B ») : un côté qui désigne le
+    dépôt (is_depot, accents et casse indifférents) marque un trajet à
+    vide. Les trajets sans distance estimée (point de contrôle, pause,
+    libellé libre) sont ignorés. None si aucun trajet n'est estimé — il n'y
+    a alors rien à afficher, et surtout pas « 0 km »."""
+    total = empty = 0
+    known = False
+    for leg in legs or []:
+        meters = leg.get("distance_m")
+        if meters is None:
+            continue
+        known = True
+        total += meters
+        sides = (leg.get("label") or "").split(" → ")
+        if len(sides) == 2 and any(is_depot(side) for side in sides):
+            empty += meters
+    if not known:
+        return None
+    return {"total": total, "empty": empty, "transport": total - empty}
+
+
+def fmt_km(meters):
+    """125400 -> '125 km'. None/manquant -> '—'. L'espace est insécable :
+    un nombre ne doit pas se retrouver séparé de son unité en fin de ligne."""
+    if meters is None:
+        return "—"
+    return f"{round(meters / 1000)} km"
+
+
 def fmt_hours_minutes(minutes):
     """125 -> '2h05'. None/manquant -> '—' (même format que
     formatHoursMinutes en JS, mission_form.js)."""
@@ -258,4 +295,5 @@ def register_jinja_filters(app):
     app.jinja_env.filters["driver_color"] = driver_color
     app.jinja_env.filters["fmt_week_range"] = fmt_week_range
     app.jinja_env.filters["fmt_hours_minutes"] = fmt_hours_minutes
+    app.jinja_env.filters["fmt_km"] = fmt_km
     app.jinja_env.filters["shuttle_number"] = shuttle_number

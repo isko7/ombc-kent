@@ -296,7 +296,9 @@ async function estimateLegTomtom(button, tr, result) {
     if (data.traffic_min > 0) text += ` (dont ${data.traffic_min} min de trafic)`;
     if (!data.with_traffic_at) text += " · trafic actuel";
     result.textContent = text;
-    tr.dataset.estKm = String(data.km);
+    setMeters(tr, data.meters != null ? data.meters : data.km * 1000);
+    const info = legKey(tr);
+    if (info) tr.dataset.estKey = info.key;
   } catch (e) {
     result.textContent = "Estimation indisponible : " + e.message;
     result.className = "estimate-result estimate-result--error";
@@ -360,6 +362,9 @@ function estimateLegGoogle(button, tr, result) {
       }
       if (!scheduled) text += " · trafic actuel";
       result.textContent = text;
+      setMeters(tr, el.distance.value);
+      const info = legKey(tr);
+      if (info) tr.dataset.estKey = info.key;
       scheduleLegsSummaryUpdate();
     }
   );
@@ -430,7 +435,25 @@ function updateLegsTimeSummary() {
   if (amplitudeEl) amplitudeEl.textContent = formatHoursMinutes(amplitude);
 }
 
-async function estimateLegKm(tr) {
+// Distance d'un trajet, en mètres, dans un champ caché enregistré avec la
+// mission : la fiche peut ainsi afficher les distances sans rappeler le
+// service d'itinéraire à chaque consultation.
+function legDistanceInput(tr) {
+  return tr.querySelector('[name="leg_distance_m[]"]');
+}
+
+function storedMeters(tr) {
+  const input = legDistanceInput(tr);
+  const value = input && input.value.trim();
+  return value ? Number(value) : null;
+}
+
+function setMeters(tr, meters) {
+  const input = legDistanceInput(tr);
+  if (input) input.value = meters == null ? "" : String(Math.round(meters));
+}
+
+function legKey(tr) {
   const label = tr.querySelector('[name="leg_label[]"]').value;
   const parts = label.split(ARROW);
   if (parts.length !== 2) return null;
@@ -439,32 +462,59 @@ async function estimateLegKm(tr) {
   if (!from || !to) return null;
   const start = tr.querySelector('[name="leg_start_time[]"]').value.trim();
   const end = tr.querySelector('[name="leg_end_time[]"]').value.trim();
+  return { from, to, key: `${from}|${to}|${start}|${end}`, start, end };
+}
 
-  const key = `${from}|${to}|${start}|${end}`;
-  if (tr.dataset.estKey === key) {
-    return tr.dataset.estKm ? Number(tr.dataset.estKm) : null;
-  }
+// La distance déjà enregistrée vaut pour le libellé affiché : on marque la
+// ligne comme estimée, pour ne pas relancer tout le calcul à l'ouverture
+// d'une mission qu'on n'a pas modifiée.
+function adoptStoredDistances() {
+  document.querySelectorAll("#legs-body tr").forEach((tr) => {
+    const info = legKey(tr);
+    if (info && storedMeters(tr) != null) tr.dataset.estKey = info.key;
+  });
+}
+
+async function estimateLegKm(tr) {
+  const info = legKey(tr);
+  if (!info) return storedMeters(tr);
+  // Déjà estimé pour ce libellé et ces horaires : rien à redemander.
+  if (tr.dataset.estKey === info.key) return storedMeters(tr);
 
   const form = document.getElementById("mission-form");
   const missionDate = document.querySelector('[name="mission_date"]');
   const body = new FormData();
-  body.append("from", from);
-  body.append("to", to);
-  body.append("start_time", start);
-  body.append("end_time", end);
+  body.append("from", info.from);
+  body.append("to", info.to);
+  body.append("start_time", info.start);
+  body.append("end_time", info.end);
   body.append("mission_date", missionDate ? missionDate.value : "");
 
+  let meters = null;
   try {
     const resp = await fetch(form.dataset.estimateUrl, { method: "POST", body });
     const data = await resp.json();
-    tr.dataset.estKey = key;
-    tr.dataset.estKm = (resp.ok && data.ok) ? String(data.km) : "";
-    return (resp.ok && data.ok) ? data.km : null;
+    if (resp.ok && data.ok) meters = data.meters != null ? data.meters : data.km * 1000;
   } catch (e) {
-    tr.dataset.estKey = key;
-    tr.dataset.estKm = "";
-    return null;
+    meters = null;
   }
+  // Le libellé a changé : la distance enregistrée ne lui correspond plus,
+  // on l'efface même si l'estimation a échoué (mieux vaut « — » qu'un
+  // chiffre qui ne veut plus rien dire).
+  tr.dataset.estKey = info.key;
+  setMeters(tr, meters);
+  return meters;
+}
+
+// Trajet à vide : une extrémité est le dépôt (aller au premier point,
+// retour du dernier). Même règle que utils.legs_distance_summary().
+function isEmptyLeg(tr) {
+  const info = legKey(tr);
+  return !!info && (foldPlace(info.from) === DEPOT_FOLD || foldPlace(info.to) === DEPOT_FOLD);
+}
+
+function formatKm(meters) {
+  return meters == null ? "—" : `${Math.round(meters / 1000)} km`;
 }
 
 let legsKmRequestToken = 0;
@@ -473,11 +523,22 @@ async function updateLegsKmTotal() {
   const rows = Array.from(document.querySelectorAll("#legs-body tr"));
   const results = await Promise.all(rows.map(estimateLegKm));
   if (token !== legsKmRequestToken) return; // une saisie plus récente a relancé le calcul
-  const el = document.getElementById("legs-summary-km");
-  if (!el) return;
-  let total = 0, known = 0;
-  results.forEach((km) => { if (km != null) { total += km; known += 1; } });
-  el.textContent = known > 0 ? `${Math.round(total)} km` : "—";
+
+  let total = 0, empty = 0, known = false;
+  results.forEach((meters, i) => {
+    if (meters == null) return;
+    known = true;
+    total += meters;
+    if (isEmptyLeg(rows[i])) empty += meters;
+  });
+
+  const set = (id, meters) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = known ? formatKm(meters) : "—";
+  };
+  set("legs-summary-km", total);
+  set("legs-summary-km-empty", empty);
+  set("legs-summary-km-transport", total - empty);
 }
 
 let legsSummaryTimer = null;
@@ -878,6 +939,8 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (e.target.matches(".relay-driver")) onRelayDriverChange(e.target);
   });
 
-  // Récap Trajets à jour dès le chargement (missions existantes).
+  // Récap Trajets à jour dès le chargement (missions existantes) : les
+  // distances déjà enregistrées sont reprises telles quelles.
+  adoptStoredDistances();
   scheduleLegsSummaryUpdate();
 });

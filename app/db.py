@@ -140,6 +140,10 @@ SCHEMA_STATEMENTS = [
         is_checkpoint TINYINT(1) NOT NULL DEFAULT 0,
         is_relay TINYINT(1) NOT NULL DEFAULT 0,
         relay_driver_id INT NULL,
+        -- Distance du trajet en mètres, telle qu'estimée par le service
+        -- d'itinéraire au moment de l'enregistrement (formulaire OM).
+        -- NULL = non estimée (libellé libre, point de contrôle...).
+        distance_m INT NULL,
         KEY idx_legs_mission (mission_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
@@ -240,6 +244,7 @@ MIGRATIONS = [
     "ALTER TABLE vehicles ADD COLUMN technical_control_date VARCHAR(10)",
     "ALTER TABLE vehicles ADD COLUMN maintenance_date VARCHAR(10)",
     "ALTER TABLE vehicles ADD COLUMN last_maintenance_km INT NULL",
+    "ALTER TABLE mission_legs ADD COLUMN distance_m INT NULL",
 ]
 
 # Codes d'erreur MySQL qui signifient « migration déjà appliquée » :

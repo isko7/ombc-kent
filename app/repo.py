@@ -662,7 +662,7 @@ def _copy_base_fields(src):
 def _copy_leg(l):
     return {"start_time": l["start_time"], "end_time": l["end_time"], "vehicle_id": l["vehicle_id"],
             "label": l["label"], "is_checkpoint": l["is_checkpoint"], "is_relay": l.get("is_relay"),
-            "relay_driver_id": l.get("relay_driver_id")}
+            "relay_driver_id": l.get("relay_driver_id"), "distance_m": l.get("distance_m")}
 
 
 def _copy_stop(s):
@@ -779,11 +779,12 @@ def _replace_legs(db, mission_id, legs):
     for i, leg in enumerate(legs):
         db.execute(
             """INSERT INTO mission_legs (mission_id, position, start_time, end_time, vehicle_id,
-               label, is_checkpoint, is_relay, relay_driver_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               label, is_checkpoint, is_relay, relay_driver_id, distance_m)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (mission_id, i, leg["start_time"], leg["end_time"], leg.get("vehicle_id") or None,
              leg["label"], 1 if leg.get("is_checkpoint") else 0,
-             1 if leg.get("is_relay") else 0, leg.get("relay_driver_id") or None),
+             1 if leg.get("is_relay") else 0, leg.get("relay_driver_id") or None,
+             leg.get("distance_m")),
         )
 
 

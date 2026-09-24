@@ -118,12 +118,24 @@
       </tbody>
     </table>
     {% if legs_summary %}
-    <div class="legs-summary">
+    {# La classe --joined ne sert que si le bloc des distances suit. #}
+    <div class="legs-summary{{ ' legs-summary--joined' if legs_distance }}">
       <span>Amplitude : <strong>{{ legs_summary.amplitude | fmt_hours_minutes }}</strong></span>
       <span class="legs-summary__sep" aria-hidden="true">-</span>
       <span>Temps de conduite : <strong>{{ legs_summary.driving | fmt_hours_minutes }}</strong></span>
       <span class="legs-summary__sep" aria-hidden="true">-</span>
       <span>Temps de pause : <strong>{{ legs_summary.pause | fmt_hours_minutes }}</strong></span>
+    </div>
+    {% endif %}
+    {# Distances : sommées sur les trajets estimés. À vide = les trajets
+       ayant le dépôt à une extrémité, transport = le reste. #}
+    {% if legs_distance %}
+    <div class="legs-summary">
+      <span>Distance totale : <strong>{{ legs_distance.total | fmt_km }}</strong></span>
+      <span class="legs-summary__sep" aria-hidden="true">-</span>
+      <span>Distance à vide : <strong>{{ legs_distance.empty | fmt_km }}</strong></span>
+      <span class="legs-summary__sep" aria-hidden="true">-</span>
+      <span>Distance Transport : <strong>{{ legs_distance.transport | fmt_km }}</strong></span>
     </div>
     {% endif %}
     {% else %}
