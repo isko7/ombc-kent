@@ -26,9 +26,33 @@
         <label for="active" style="margin:0;">Véhicule actif</label>
       </div>
     </div>
+
+    {# Suivi de l'entretien. La date de contrôle technique allume la
+       pastille rouge du menu Véhicules quand l'échéance approche. #}
+    <div class="form-grid form-grid--3">
+      <div class="field">
+        <label>Date de contrôle technique</label>
+        <input type="date" name="technical_control_date" value="{{ vehicle.technical_control_date or '' }}">
+        <div class="hint">Signalé dans le menu dès qu'il reste moins d'un mois.</div>
+      </div>
+      <div class="field">
+        <label>Date d'entretien</label>
+        <input type="date" name="maintenance_date" value="{{ vehicle.maintenance_date or '' }}">
+      </div>
+      <div class="field">
+        <label>Kilométrage au dernier entretien</label>
+        <input type="number" name="last_maintenance_km" min="0" step="1"
+               value="{{ vehicle.last_maintenance_km if vehicle.last_maintenance_km is not none else '' }}">
+      </div>
+    </div>
+
     <div class="field">
       <label>Notes</label>
       <textarea name="notes">{{ vehicle.notes or '' }}</textarea>
+    </div>
+    <div class="field">
+      <label>Remarques</label>
+      <textarea name="remarks" placeholder="Pneus, carrosserie, points à surveiller…">{{ vehicle.remarks or '' }}</textarea>
     </div>
 
     <div class="btn-row">

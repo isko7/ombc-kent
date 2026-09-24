@@ -25,7 +25,7 @@ from app.config import DB_CONFIG, env
 # cascade des lignes filles est faite explicitement dans repo.delete_*.
 SCHEMA_STATEMENTS = [
     """
-    CREATE TABLE IF NOT EXISTS drivers (
+    CREATE TABLE IF NOT EXISTS crew (
         id INT AUTO_INCREMENT PRIMARY KEY,
         last_name VARCHAR(120) NOT NULL,
         first_name VARCHAR(120) NOT NULL,
@@ -42,8 +42,12 @@ SCHEMA_STATEMENTS = [
         username VARCHAR(80) NULL,
         password_hash VARCHAR(255) NULL,
         notes TEXT,
+        remarks TEXT,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        -- Nom d'index hérité de l'ancienne table « drivers » : RENAME TABLE
+        -- le conserve tel quel, on garde donc le même nom ici pour que les
+        -- deux chemins (base neuve / base renommée) aient le même schéma.
         UNIQUE KEY uq_drivers_username (username)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
@@ -55,6 +59,12 @@ SCHEMA_STATEMENTS = [
         seats INT,
         active TINYINT(1) NOT NULL DEFAULT 1,
         notes TEXT,
+        remarks TEXT,
+        -- Dates au format 'YYYY-MM-DD' (VARCHAR, comme missions.mission_date) :
+        -- elles se comparent et se trient telles quelles.
+        technical_control_date VARCHAR(10),
+        maintenance_date VARCHAR(10),
+        last_maintenance_km INT NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -207,29 +217,57 @@ MIGRATIONS = [
     "ALTER TABLE missions ADD COLUMN sent_randstad_at DATETIME NULL",
     "ALTER TABLE missions ADD COLUMN sent_driver_at DATETIME NULL",
     "ALTER TABLE missions ADD COLUMN shuttle_label VARCHAR(120)",
-    "ALTER TABLE drivers ADD COLUMN color VARCHAR(9)",
+    "ALTER TABLE crew ADD COLUMN color VARCHAR(9)",
     "ALTER TABLE missions ADD COLUMN amplitude_minutes INT NULL",
     "ALTER TABLE missions ADD COLUMN driving_minutes INT NULL",
     "ALTER TABLE missions ADD COLUMN pause_minutes INT NULL",
-    "ALTER TABLE drivers ADD COLUMN send_itinerary TINYINT(1) NOT NULL DEFAULT 0",
-    "ALTER TABLE drivers ADD COLUMN can_login TINYINT(1) NOT NULL DEFAULT 0",
-    "ALTER TABLE drivers ADD COLUMN username VARCHAR(80) NULL",
-    "ALTER TABLE drivers ADD COLUMN password_hash VARCHAR(255) NULL",
-    "ALTER TABLE drivers ADD UNIQUE KEY uq_drivers_username (username)",
-    "ALTER TABLE drivers ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0",
-    "ALTER TABLE drivers ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE crew ADD COLUMN send_itinerary TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE crew ADD COLUMN can_login TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE crew ADD COLUMN username VARCHAR(80) NULL",
+    "ALTER TABLE crew ADD COLUMN password_hash VARCHAR(255) NULL",
+    "ALTER TABLE crew ADD UNIQUE KEY uq_drivers_username (username)",
+    "ALTER TABLE crew ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE crew ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0",
     "ALTER TABLE missions ADD COLUMN bc_client_name VARCHAR(255)",
     "ALTER TABLE missions ADD COLUMN bc_client_address VARCHAR(255)",
     "ALTER TABLE missions ADD COLUMN bc_client_postal_code VARCHAR(20)",
     "ALTER TABLE missions ADD COLUMN bc_client_city VARCHAR(120)",
     "ALTER TABLE missions ADD COLUMN bc_client_phone VARCHAR(255)",
     "ALTER TABLE missions ADD COLUMN notes TEXT",
-    "ALTER TABLE drivers ADD COLUMN personal_notes TEXT",
+    "ALTER TABLE crew ADD COLUMN personal_notes TEXT",
+    "ALTER TABLE crew ADD COLUMN remarks TEXT",
+    "ALTER TABLE vehicles ADD COLUMN remarks TEXT",
+    "ALTER TABLE vehicles ADD COLUMN technical_control_date VARCHAR(10)",
+    "ALTER TABLE vehicles ADD COLUMN maintenance_date VARCHAR(10)",
+    "ALTER TABLE vehicles ADD COLUMN last_maintenance_km INT NULL",
 ]
 
 # Codes d'erreur MySQL qui signifient « migration déjà appliquée » :
 # 1060 colonne déjà présente, 1061 index déjà présent.
 MIGRATION_ALREADY_APPLIED = (1060, 1061)
+
+# Renommages de tables, joués AVANT les CREATE TABLE : « CREATE TABLE IF
+# NOT EXISTS crew » créerait sinon une table vide, et le renommage
+# échouerait en laissant les données dans l'ancienne table.
+TABLE_RENAMES = [("drivers", "crew")]
+
+
+def _table_exists(cur, name):
+    cur.execute("SHOW TABLES LIKE %s", (name,))
+    return cur.fetchone() is not None
+
+
+def _rename_legacy_tables(cur):
+    """Applique TABLE_RENAMES. Ne fait rien si la nouvelle table existe
+    déjà (renommage déjà joué) ou si l'ancienne n'existe pas (base neuve).
+    Renvoie la liste des renommages effectués."""
+    done = []
+    for old_name, new_name in TABLE_RENAMES:
+        if _table_exists(cur, new_name) or not _table_exists(cur, old_name):
+            continue
+        cur.execute(f"RENAME TABLE {old_name} TO {new_name}")
+        done.append(f"{old_name} -> {new_name}")
+    return done
 
 
 def _connect():
@@ -358,6 +396,8 @@ def init_db(force=False, report=False):
     conn = _get_conn()
     timings = []
     with conn.cursor() as cur:
+        for renamed in _rename_legacy_tables(cur):
+            timings.append({"migration": f"RENAME TABLE {renamed}", "ms": 0})
         for stmt in SCHEMA_STATEMENTS:
             name = stmt.split("IF NOT EXISTS", 1)[-1].split("(", 1)[0].strip()
             t0 = time.monotonic()

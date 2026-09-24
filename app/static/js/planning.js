@@ -194,6 +194,53 @@
     }
   }
 
+  // Téléphone : bascule entre l'agenda (liste par jour, vue par défaut) et
+  // la grille hebdomadaire. Les deux vues sont déjà dans la page — seul le
+  // CSS change — et le choix est mémorisé d'un écran à l'autre.
+  var VIEW_KEY = "kent.planning.mobileGrid";
+
+  function initViewToggle() {
+    var btn = document.getElementById("planning-view-toggle");
+    if (!btn) return;
+    var label = btn.querySelector("[data-view-label]") || btn;
+
+    function apply(grid) {
+      document.body.classList.toggle("planning-mobile-grid", grid);
+      btn.setAttribute("aria-pressed", grid ? "true" : "false");
+      label.textContent = grid ? "📋 Vue agenda" : "📅 Vue calendrier";
+    }
+    function remember(grid) {
+      try {
+        localStorage.setItem(VIEW_KEY, grid ? "1" : "0");
+      } catch (e) { /* tant pis, le choix ne survivra pas à la page */ }
+    }
+    var saved = false;
+    try {
+      saved = localStorage.getItem(VIEW_KEY) === "1";
+    } catch (e) { /* rien de mémorisé */ }
+
+    apply(saved);
+    btn.addEventListener("click", function () {
+      var grid = !document.body.classList.contains("planning-mobile-grid");
+      apply(grid);
+      remember(grid);
+      // Grille affichée après coup : on la cale sur le jour courant plutôt
+      // que sur le lundi.
+      if (grid) scrollToToday();
+    });
+    if (saved) scrollToToday();
+  }
+
+  // Cale le défilement horizontal de la grille sur le jour courant.
+  function scrollToToday() {
+    var grid = document.getElementById("planning-grid");
+    if (!grid) return;
+    var today = grid.getAttribute("data-today");
+    var col = grid.querySelector('.planning-grid__daycol[data-date="' + today + '"]');
+    if (col) grid.scrollLeft = Math.max(0, col.offsetLeft - 60);
+  }
+
   renderGrid();
   initSharePanel();
+  initViewToggle();
 })();

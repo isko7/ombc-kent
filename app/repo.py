@@ -10,7 +10,7 @@ import re
 from datetime import datetime, date
 from app.config import PINNED_CLIENT_NAME
 from app.db import get_db
-from app.utils import legs_time_summary
+from app.utils import legs_time_summary, now_paris
 
 
 def row_to_dict(row):
@@ -25,10 +25,10 @@ def now_iso():
     return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
 
-# ---------------------------------------------------------------- drivers
+# --------------------------------------------- personnel (table crew)
 def list_drivers(include_inactive=True):
     with get_db() as db:
-        q = "SELECT * FROM drivers"
+        q = "SELECT * FROM crew"
         if not include_inactive:
             q += " WHERE active = 1"
         q += " ORDER BY last_name, first_name"
@@ -37,22 +37,22 @@ def list_drivers(include_inactive=True):
 
 def get_driver(driver_id):
     with get_db() as db:
-        return row_to_dict(db.execute("SELECT * FROM drivers WHERE id = ?", (driver_id,)).fetchone())
+        return row_to_dict(db.execute("SELECT * FROM crew WHERE id = ?", (driver_id,)).fetchone())
 
 
 def create_driver(data):
     with get_db() as db:
         cur = db.execute(
-            """INSERT INTO drivers (last_name, first_name, email, phone, license_number, active, color,
+            """INSERT INTO crew (last_name, first_name, email, phone, license_number, active, color,
                send_itinerary, can_login, is_admin, must_change_password, username,
-               password_hash, notes)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               password_hash, notes, remarks)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (data["last_name"], data["first_name"], data["email"], data.get("phone"),
              data.get("license_number"), 1 if data.get("active", True) else 0,
              data.get("color") or None, 1 if data.get("send_itinerary") else 0,
              1 if data.get("can_login") else 0, 1 if data.get("is_admin") else 0,
              1 if data.get("must_change_password") else 0, data.get("username") or None,
-             data.get("password_hash") or None, data.get("notes")),
+             data.get("password_hash") or None, data.get("notes"), data.get("remarks")),
         )
         return cur.lastrowid
 
@@ -62,12 +62,13 @@ def update_driver(driver_id, data):
     laisse le champ vide quand on ne veut pas le remplacer)."""
     fields = ["last_name=?", "first_name=?", "email=?", "phone=?", "license_number=?",
               "active=?", "color=?", "send_itinerary=?", "can_login=?", "is_admin=?",
-              "username=?", "notes=?", "updated_at=?"]
+              "username=?", "notes=?", "remarks=?", "updated_at=?"]
     params = [data["last_name"], data["first_name"], data["email"], data.get("phone"),
               data.get("license_number"), 1 if data.get("active", True) else 0,
               data.get("color") or None, 1 if data.get("send_itinerary") else 0,
               1 if data.get("can_login") else 0, 1 if data.get("is_admin") else 0,
-              data.get("username") or None, data.get("notes"), now_iso()]
+              data.get("username") or None, data.get("notes"), data.get("remarks"),
+              now_iso()]
     if "password_hash" in data:
         fields.insert(-1, "password_hash=?")
         params.insert(-1, data.get("password_hash") or None)
@@ -76,14 +77,14 @@ def update_driver(driver_id, data):
         params.insert(-1, 1 if data.get("must_change_password") else 0)
     with get_db() as db:
         db.execute(
-            "UPDATE drivers SET " + ", ".join(fields) + " WHERE id=?",
+            "UPDATE crew SET " + ", ".join(fields) + " WHERE id=?",
             tuple(params) + (driver_id,),
         )
 
 
 def delete_driver(driver_id):
     with get_db() as db:
-        db.execute("DELETE FROM drivers WHERE id = ?", (driver_id,))
+        db.execute("DELETE FROM crew WHERE id = ?", (driver_id,))
 
 
 # ----------------------------------------------- accès à l'application
@@ -94,7 +95,7 @@ def get_driver_by_username(username):
         return None
     with get_db() as db:
         return row_to_dict(db.execute(
-            "SELECT * FROM drivers WHERE LOWER(username) = LOWER(?)", (username,)
+            "SELECT * FROM crew WHERE LOWER(username) = LOWER(?)", (username,)
         ).fetchone())
 
 
@@ -111,7 +112,7 @@ def count_drivers_with_login():
     Chauffeurs et fermerait l'application à tout le monde."""
     with get_db() as db:
         row = db.execute(
-            """SELECT COUNT(*) AS n FROM drivers
+            """SELECT COUNT(*) AS n FROM crew
                WHERE can_login = 1 AND active = 1 AND password_hash IS NOT NULL"""
         ).fetchone()
         return int(row["n"]) if row else 0
@@ -120,7 +121,7 @@ def count_drivers_with_login():
 def find_driver_by_name(last_name, first_name):
     with get_db() as db:
         return row_to_dict(db.execute(
-            """SELECT * FROM drivers WHERE LOWER(last_name) = LOWER(?)
+            """SELECT * FROM crew WHERE LOWER(last_name) = LOWER(?)
                AND LOWER(first_name) = LOWER(?) LIMIT 1""",
             (last_name, first_name),
         ).fetchone())
@@ -131,7 +132,7 @@ def grant_login(driver_id, username, password_hash):
     compte de secours, il doit pouvoir rouvrir l'accès aux autres."""
     with get_db() as db:
         db.execute(
-            """UPDATE drivers SET can_login=1, is_admin=1, must_change_password=0,
+            """UPDATE crew SET can_login=1, is_admin=1, must_change_password=0,
                username=?, password_hash=?, active=1, updated_at=? WHERE id=?""",
             (username, password_hash, now_iso(), driver_id),
         )
@@ -148,7 +149,7 @@ def set_mission_notes(mission_id, notes):
 def set_personal_notes(driver_id, notes):
     """Bloc-notes personnel, propre à chaque compte."""
     with get_db() as db:
-        db.execute("UPDATE drivers SET personal_notes=?, updated_at=? WHERE id=?",
+        db.execute("UPDATE crew SET personal_notes=?, updated_at=? WHERE id=?",
                    (notes or None, now_iso(), driver_id))
 
 
@@ -157,7 +158,7 @@ def set_admin(driver_id, is_admin):
     d'autre (ni identifiant, ni mot de passe)."""
     with get_db() as db:
         db.execute(
-            "UPDATE drivers SET is_admin=?, updated_at=? WHERE id=?",
+            "UPDATE crew SET is_admin=?, updated_at=? WHERE id=?",
             (1 if is_admin else 0, now_iso(), driver_id),
         )
 
@@ -168,7 +169,7 @@ def count_admins():
     accès, ni même rouvrir le sien)."""
     with get_db() as db:
         row = db.execute(
-            """SELECT COUNT(*) AS n FROM drivers
+            """SELECT COUNT(*) AS n FROM crew
                WHERE is_admin = 1 AND can_login = 1 AND active = 1
                AND password_hash IS NOT NULL"""
         ).fetchone()
@@ -179,7 +180,7 @@ def set_password(driver_id, password_hash, must_change=False):
     """Change le mot de passe d'une fiche sans toucher au reste."""
     with get_db() as db:
         db.execute(
-            """UPDATE drivers SET password_hash=?, must_change_password=?, updated_at=?
+            """UPDATE crew SET password_hash=?, must_change_password=?, updated_at=?
                WHERE id=?""",
             (password_hash, 1 if must_change else 0, now_iso(), driver_id),
         )
@@ -203,9 +204,13 @@ def get_vehicle(vehicle_id):
 def create_vehicle(data):
     with get_db() as db:
         cur = db.execute(
-            """INSERT INTO vehicles (name, plate, seats, active, notes) VALUES (?, ?, ?, ?, ?)""",
+            """INSERT INTO vehicles (name, plate, seats, active, notes, remarks,
+               technical_control_date, maintenance_date, last_maintenance_km)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (data.get("name"), data["plate"], data.get("seats") or None,
-             1 if data.get("active", True) else 0, data.get("notes")),
+             1 if data.get("active", True) else 0, data.get("notes"), data.get("remarks"),
+             data.get("technical_control_date") or None, data.get("maintenance_date") or None,
+             data.get("last_maintenance_km")),
         )
         return cur.lastrowid
 
@@ -213,16 +218,34 @@ def create_vehicle(data):
 def update_vehicle(vehicle_id, data):
     with get_db() as db:
         db.execute(
-            """UPDATE vehicles SET name=?, plate=?, seats=?, active=?, notes=?, updated_at=?
-               WHERE id=?""",
+            """UPDATE vehicles SET name=?, plate=?, seats=?, active=?, notes=?, remarks=?,
+               technical_control_date=?, maintenance_date=?, last_maintenance_km=?,
+               updated_at=? WHERE id=?""",
             (data.get("name"), data["plate"], data.get("seats") or None,
-             1 if data.get("active", True) else 0, data.get("notes"), now_iso(), vehicle_id),
+             1 if data.get("active", True) else 0, data.get("notes"), data.get("remarks"),
+             data.get("technical_control_date") or None, data.get("maintenance_date") or None,
+             data.get("last_maintenance_km"), now_iso(), vehicle_id),
         )
 
 
 def delete_vehicle(vehicle_id):
     with get_db() as db:
         db.execute("DELETE FROM vehicles WHERE id = ?", (vehicle_id,))
+
+
+def count_vehicles_ct_due(deadline):
+    """Nombre de véhicules dont le contrôle technique arrive à échéance au
+    plus tard le `deadline` ('YYYY-MM-DD'), retards compris : c'est la
+    pastille rouge du menu Véhicules (voir app/__init__.py). Les véhicules
+    inactifs comptent aussi — la liste les signale de la même façon."""
+    with get_db() as db:
+        row = db.execute(
+            """SELECT COUNT(*) AS n FROM vehicles
+               WHERE technical_control_date IS NOT NULL AND technical_control_date <> ''
+                 AND technical_control_date <= ?""",
+            (deadline,),
+        ).fetchone()
+        return int(row["n"]) if row else 0
 
 
 # ---------------------------------------------------------------- clients
@@ -345,12 +368,13 @@ def _next_reference(db, mission_date_str):
 
 
 _MISSIONS_FROM = """FROM missions m
-       JOIN drivers d ON d.id = m.driver_id
+       JOIN crew d ON d.id = m.driver_id
        LEFT JOIN clients c ON c.id = m.client_id
        WHERE 1=1"""
 
 
-def _missions_filters(driver_id, date_from, date_to, status, name, ids=None):
+def _missions_filters(driver_id, date_from, date_to, status, name, ids=None,
+                      service_cutoff=None):
     """Fragment WHERE + paramètres, partagé par list_missions() et
     count_missions() pour que le total de la pagination corresponde
     exactement aux lignes affichées."""
@@ -376,6 +400,10 @@ def _missions_filters(driver_id, date_from, date_to, status, name, ids=None):
         # on cherche « contient » (comportement attendu par défaut).
         q += " AND m.mission_name LIKE ?"
         params.append(name if "%" in name else f"%{name}%")
+    if service_cutoff:
+        cutoff_sql, cutoff_params = _service_cutoff(*service_cutoff)
+        q += cutoff_sql
+        params.extend(cutoff_params)
     return q, params
 
 
@@ -402,15 +430,47 @@ _SQL_SERVICE_START = f"""(SELECT LPAD({_sql_time('l.start_time')}, 5, '0')
        ORDER BY l.position LIMIT 1)"""
 
 
-def count_missions(driver_id=None, date_from=None, date_to=None, status=None, name=None):
-    where, params = _missions_filters(driver_id, date_from, date_to, status, name)
+# Fin de service, même règle que _SQL_SERVICE_START mais sur le DERNIER
+# trajet horodaté : sert à décider si une mission du jour est déjà passée.
+_SQL_SERVICE_END = f"""(SELECT LPAD({_sql_time('l.end_time')}, 5, '0')
+       FROM mission_legs l
+       WHERE l.mission_id = m.id
+         AND {_sql_time('l.start_time')} {_SQL_VALID_TIME}
+         AND {_sql_time('l.end_time')} {_SQL_VALID_TIME}
+       ORDER BY l.position DESC LIMIT 1)"""
+
+
+def _service_cutoff(mode, today, now_hm):
+    """Fragment WHERE séparant les missions passées des missions à venir à
+    la minute près (et non à la journée) : une mission du jour n'est passée
+    qu'une fois sa fin de service dépassée.
+
+    `mode` : 'past' ou 'current'. Les deux fragments sont strictement
+    complémentaires, une mission apparaît donc dans un onglet et un seul.
+    Une mission du jour sans horaire exploitable, ou qui se termine le
+    lendemain (fin < début, mission de nuit), reste « à venir »."""
+    end, start = _SQL_SERVICE_END, _SQL_SERVICE_START
+    if mode == "past":
+        q = (f" AND (m.mission_date < ? OR (m.mission_date = ? AND {end} IS NOT NULL"
+             f" AND {end} >= {start} AND {end} < ?))")
+    else:
+        q = (f" AND (m.mission_date > ? OR (m.mission_date = ? AND ({end} IS NULL"
+             f" OR {end} < {start} OR {end} >= ?)))")
+    return q, [today, today, now_hm]
+
+
+def count_missions(driver_id=None, date_from=None, date_to=None, status=None, name=None,
+                   service_cutoff=None):
+    where, params = _missions_filters(driver_id, date_from, date_to, status, name,
+                                      service_cutoff=service_cutoff)
     with get_db() as db:
         return db.execute(f"SELECT COUNT(*) AS c {_MISSIONS_FROM}{where}", params).fetchone()["c"]
 
 
 def list_missions(driver_id=None, date_from=None, date_to=None, status=None, name=None,
-                  ascending=False, limit=None, offset=0, ids=None):
-    where, params = _missions_filters(driver_id, date_from, date_to, status, name, ids)
+                  ascending=False, limit=None, offset=0, ids=None, service_cutoff=None):
+    where, params = _missions_filters(driver_id, date_from, date_to, status, name, ids,
+                                      service_cutoff=service_cutoff)
     q = f"""SELECT m.*, d.last_name AS driver_last_name, d.first_name AS driver_first_name,
                    c.name AS client_name
             {_MISSIONS_FROM}{where}"""
@@ -495,7 +555,7 @@ def get_mission(mission_id):
         if not mission:
             return None
         mission["driver"] = row_to_dict(
-            db.execute("SELECT * FROM drivers WHERE id = ?", (mission["driver_id"],)).fetchone()
+            db.execute("SELECT * FROM crew WHERE id = ?", (mission["driver_id"],)).fetchone()
         )
         mission["client"] = row_to_dict(
             db.execute("SELECT * FROM clients WHERE id = ?", (mission["client_id"],)).fetchone()
@@ -589,7 +649,9 @@ def _copy_base_fields(src):
         "motif": src["motif"],
         "remarks": src["remarks"],
         "client_id": src["client_id"],
-        "emission_date": src["emission_date"],
+        # Duplication et trajet retour donnent un document neuf : il est
+        # émis aujourd'hui, pas à la date de l'original.
+        "emission_date": now_paris().date().isoformat(),
         "price": src["price"],
         "status": "brouillon",
         "om_template_id": src["om_template_id"],
@@ -680,6 +742,12 @@ def create_return_mission(mission_id):
 def update_mission(mission_id, data):
     amplitude, driving, pause = _legs_summary_fields(data.get("legs") or [])
     with get_db() as db:
+        # Mission confiée à quelqu'un d'autre : l'OM déjà envoyé ne vaut
+        # plus (ni pour Randstad, ni pour l'ancien chauffeur). Les deux
+        # indicateurs d'envoi repartent à zéro, il faut renvoyer.
+        row = db.execute("SELECT driver_id FROM missions WHERE id = ?", (mission_id,)).fetchone()
+        driver_changed = bool(row) and row["driver_id"] != data["driver_id"]
+        resend = ", sent_randstad_at=NULL, sent_driver_at=NULL" if driver_changed else ""
         db.execute(
             """UPDATE missions SET driver_id=?, mission_date=?, mission_name=?,
                shuttle_label=?, motif=?, remarks=?,
@@ -687,7 +755,7 @@ def update_mission(mission_id, data):
                bc_client_city=?, bc_client_phone=?,
                emission_date=?, price=?, status=?, om_template_id=?, bc_template_id=?,
                amplitude_minutes=?, driving_minutes=?, pause_minutes=?,
-               updated_at=? WHERE id=?""",
+               updated_at=?""" + resend + " WHERE id=?",
             (data["driver_id"], data["mission_date"], data.get("mission_name") or None,
              data.get("shuttle_label") or None,
              data.get("motif") or "Transport Occasionnel",

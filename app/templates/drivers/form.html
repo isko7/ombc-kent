@@ -28,7 +28,7 @@
         <label>&nbsp;</label>
         <div class="checkbox-field">
           <input type="checkbox" name="active" id="active" {{ 'checked' if driver.active|default(true) }}>
-          <label for="active" style="margin:0;">Utilisateur Conducteur</label>
+          <label for="active" style="margin:0;">Chauffeur</label>
         </div>
       </div>
       <div class="field">
@@ -61,6 +61,10 @@
     <div class="field">
       <label>Notes</label>
       <textarea name="notes">{{ driver.notes or '' }}</textarea>
+    </div>
+    <div class="field">
+      <label>Remarques</label>
+      <textarea name="remarks" placeholder="Visite médicale, FIMO/FCO, restrictions…">{{ driver.remarks or '' }}</textarea>
     </div>
 
     <fieldset class="access-block">

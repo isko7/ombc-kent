@@ -66,6 +66,7 @@ DRIVER_ENDPOINTS = {
     "missions.list_missions_view",
     "missions.detail_mission",
     "missions.mission_pdf",
+    "missions.mission_bc_pdf",
     "auth.change_password",
     "auth.save_personal_notes",
     "auth.logout",

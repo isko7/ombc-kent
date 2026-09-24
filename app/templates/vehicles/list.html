@@ -13,7 +13,11 @@
     {% if vehicles %}
     <table class="data-table">
       <thead>
-        <tr><th>Nom</th><th>Immatriculation</th><th>Places</th><th>Statut</th><th></th></tr>
+        <tr>
+          <th>Nom</th><th>Immatriculation</th><th>Places</th>
+          <th>Contrôle technique</th><th>Entretien</th><th>Km dernier entretien</th>
+          <th>Statut</th><th></th>
+        </tr>
       </thead>
       <tbody>
         {% for v in vehicles %}
@@ -21,6 +25,17 @@
           <td><a href="{{ url_for('vehicles.edit_vehicle', vehicle_id=v.id) }}"><strong>{{ v.name or '—' }}</strong></a></td>
           <td>{{ v.plate }}</td>
           <td>{{ v.seats or '—' }}</td>
+          {# Échéance dans moins d'un mois (ou dépassée) : même seuil que la
+             pastille du menu (vehicles.ct_alert_deadline). #}
+          <td>
+            {% if v.technical_control_date %}
+              {% if v.technical_control_date <= ct_deadline %}
+              <span class="badge badge--due" title="Contrôle technique à faire">{{ v.technical_control_date | fmt_date_long }}</span>
+              {% else %}{{ v.technical_control_date | fmt_date_long }}{% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ (v.maintenance_date | fmt_date_long) or '—' }}</td>
+          <td>{{ '{:,}'.format(v.last_maintenance_km).replace(',', ' ') ~ ' km' if v.last_maintenance_km is not none else '—' }}</td>
           <td>{% if v.active %}<span class="badge badge--envoyé">Actif</span>{% else %}<span class="badge badge--inactive">Inactif</span>{% endif %}</td>
           <td class="row-actions">
             <a href="{{ url_for('vehicles.edit_vehicle', vehicle_id=v.id) }}" class="btn btn--ghost btn--sm">Modifier</a>

@@ -9,50 +9,60 @@
       <h1>Planning</h1>
       <div class="week-title">Semaine {{ week_number }} — du {{ monday | fmt_week_range }}</div>
     </div>
-    {% if is_admin %}
-    <details class="share-panel">
-      <summary class="btn btn--secondary">🔗 Partager le calendrier</summary>
-      <div class="share-panel__body card">
-        {% if feed_enabled %}
-        <p class="hint" style="margin-top:0;">
-          Ce lien affiche les missions dans Calendrier (iPhone) ou Google Agenda (Android), et se
-          met à jour automatiquement — pas besoin de le repartager.
-        </p>
-        <div class="field" style="margin-bottom:10px;">
-          <label>Chauffeur</label>
-          <select id="share-driver-select">
-            <option value="">— Toutes les missions —</option>
-            {% for d in drivers %}
-            <option value="{{ d.id }}">{{ d.last_name }} {{ d.first_name }}</option>
-            {% endfor %}
-          </select>
+    <div class="page-head__actions">
+      {# Téléphone : l'agenda (liste par jour) est la vue par défaut ; ce
+         bouton bascule sur la vraie grille hebdomadaire, qui défile
+         horizontalement. Masqué sur les écrans larges, où la grille est
+         déjà affichée. #}
+      <button type="button" class="btn btn--secondary planning-view-toggle"
+              id="planning-view-toggle" aria-pressed="false">
+        <span data-view-label>📅 Vue calendrier</span>
+      </button>
+      {% if is_admin %}
+      <details class="share-panel">
+        <summary class="btn btn--secondary">🔗 Partager le calendrier</summary>
+        <div class="share-panel__body card">
+          {% if feed_enabled %}
+          <p class="hint" style="margin-top:0;">
+            Ce lien affiche les missions dans Calendrier (iPhone) ou Google Agenda (Android), et se
+            met à jour automatiquement — pas besoin de le repartager.
+          </p>
+          <div class="field" style="margin-bottom:10px;">
+            <label>Chauffeur</label>
+            <select id="share-driver-select">
+              <option value="">— Toutes les missions —</option>
+              {% for d in drivers %}
+              <option value="{{ d.id }}">{{ d.last_name }} {{ d.first_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="share-link-row" data-feed-base="{{ feed_url }}">
+            <input type="text" id="share-link-input" readonly value="{{ feed_url }}">
+            <button type="button" class="btn btn--secondary btn--sm" id="share-copy-btn">Copier</button>
+          </div>
+          <div class="btn-row" style="margin-top:10px;">
+            <a id="share-webcal-link" class="btn btn--ghost btn--sm" href="{{ feed_url | replace('https://', 'webcal://') | replace('http://', 'webcal://') }}">
+              📅 Ajouter à Calendrier (iPhone/iPad)
+            </a>
+          </div>
+          <p class="hint">
+            <strong>Android / Google Agenda</strong> : sur calendar.google.com, menu « Autres agendas »
+            → « + » → « À partir de l'URL », et coller le lien ci-dessus.<br>
+            <strong>iPhone</strong> : bouton ci-dessus, ou Réglages → Appli Calendrier → Comptes →
+            Ajouter un compte → Autre → « Nouv. abonnement calendrier ».
+          </p>
+          {% else %}
+          <p><strong>Le partage n'est pas encore activé.</strong></p>
+          <p class="hint">
+            Ajoutez la variable d'environnement <code>CALENDAR_FEED_TOKEN</code> (secret aléatoire)
+            puis redémarrez l'application. Exemple de valeur :
+          </p>
+          <pre class="billing-summary" style="user-select:all;">{{ suggested_token }}</pre>
+          {% endif %}
         </div>
-        <div class="share-link-row" data-feed-base="{{ feed_url }}">
-          <input type="text" id="share-link-input" readonly value="{{ feed_url }}">
-          <button type="button" class="btn btn--secondary btn--sm" id="share-copy-btn">Copier</button>
-        </div>
-        <div class="btn-row" style="margin-top:10px;">
-          <a id="share-webcal-link" class="btn btn--ghost btn--sm" href="{{ feed_url | replace('https://', 'webcal://') | replace('http://', 'webcal://') }}">
-            📅 Ajouter à Calendrier (iPhone/iPad)
-          </a>
-        </div>
-        <p class="hint">
-          <strong>Android / Google Agenda</strong> : sur calendar.google.com, menu « Autres agendas »
-          → « + » → « À partir de l'URL », et coller le lien ci-dessus.<br>
-          <strong>iPhone</strong> : bouton ci-dessus, ou Réglages → Appli Calendrier → Comptes →
-          Ajouter un compte → Autre → « Nouv. abonnement calendrier ».
-        </p>
-        {% else %}
-        <p><strong>Le partage n'est pas encore activé.</strong></p>
-        <p class="hint">
-          Ajoutez la variable d'environnement <code>CALENDAR_FEED_TOKEN</code> (secret aléatoire)
-          puis redémarrez l'application. Exemple de valeur :
-        </p>
-        <pre class="billing-summary" style="user-select:all;">{{ suggested_token }}</pre>
-        {% endif %}
-      </div>
-    </details>
-    {% endif %}
+      </details>
+      {% endif %}
+    </div>
   </div>
 
   {% if drivers and not own_only %}

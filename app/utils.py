@@ -21,6 +21,19 @@ def parse_iso_date(value):
     return datetime.strptime(value[:10], "%Y-%m-%d").date()
 
 
+def now_paris():
+    """Date et heure courantes à Paris. Le serveur tourne en UTC (Vercel) :
+    sans correction, une mission qui se termine à 23h50 serait considérée
+    comme passée dès 21h50 en France (voir la liste des OM, onglet
+    « Missions passées »)."""
+    # Import local : ical_service ne dépend de rien, mais utils est importé
+    # très tôt (filtres Jinja) — on évite d'y ajouter une dépendance au
+    # chargement.
+    from app.ical_service import paris_utc_offset_hours
+    utc_now = datetime.utcnow()
+    return utc_now + timedelta(hours=paris_utc_offset_hours(utc_now.date()))
+
+
 def fmt_time(hhmm):
     """'11:00' -> '11h00'. Laisse passer une chaîne déjà au format 11h00."""
     if not hhmm:

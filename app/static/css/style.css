@@ -123,6 +123,20 @@ a:hover { text-decoration: underline; }
 }
 .topbar__nav a:hover { color: #fff; text-decoration: none; background: rgba(255,255,255,0.08); }
 .topbar__nav a.active { color: #fff; background: var(--red); }
+/* Pastille d'alerte d'une entrée de menu (contrôles techniques à faire). */
+.topbar__count {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 20px;
+  background: var(--red); color: #fff; font-size: 11px; font-weight: 800; line-height: 1.5;
+}
+.topbar__nav a.active .topbar__count { background: rgba(0,0,0,.35); }
+/* Bouton du menu replié : n'apparaît que sur téléphone (media query plus bas). */
+.topbar__burger {
+  display: none; align-items: center; justify-content: center; flex: none;
+  width: 34px; height: 30px; padding: 0; cursor: pointer;
+  background: transparent; color: #d9d9de;
+  border: 1px solid rgba(255,255,255,0.25); border-radius: var(--radius);
+}
+.topbar__burger:hover { color: #fff; background: rgba(255,255,255,0.08); }
 .topbar__user { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; white-space: nowrap; }
 .topbar__user-name {
   color: #d9d9de; font-size: 13px; font-weight: 700; max-width: 180px;
@@ -161,6 +175,7 @@ a:hover { text-decoration: underline; }
   margin-bottom: 20px; flex-wrap: wrap;
 }
 .page-head h1 { font-size: 22px; margin: 0; letter-spacing: -0.2px; }
+.page-head__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .page-head .sub { color: var(--muted); font-size: 13.5px; margin-top: 2px; }
 
 .card {
@@ -193,6 +208,10 @@ a:hover { text-decoration: underline; }
 .btn--blue { background: var(--blue); color: #fff; }
 .btn--blue:hover { background: var(--blue-dark); }
 .btn--sm { padding: 6px 11px; font-size: 12.5px; }
+/* Bouton réduit à son icône (envois de la fiche mission) : carré, le libellé
+   passe dans title/aria-label. */
+.btn--icon { padding: 9px; }
+.btn--icon svg { display: block; }
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
 
 /* --------------------------------------------------------------- tables */
@@ -216,6 +235,8 @@ table.data-table .row-actions { text-align: right; white-space: nowrap; }
 .badge--finalisé { background: var(--warn-bg); color: var(--warn-text); }
 .badge--envoyé { background: var(--ok-bg); color: var(--ok-text); }
 .badge--inactive { background: var(--tint); color: var(--muted); }
+/* Échéance atteinte ou proche (contrôle technique d'un véhicule). */
+.badge--due { background: var(--err-bg); color: var(--err-text); text-transform: none; letter-spacing: 0; }
 
 /* Petits indicateurs d'envoi : bleu = envoyé à Randstad, vert = envoyé
    au chauffeur. Utilisés sur la liste et la fiche mission. */
@@ -271,6 +292,12 @@ table.edit-rows select.relay-driver { width: 100%; background: var(--relay-bg); 
 }
 .mission-hero .ref { font-size: 12.5px; color: var(--muted); font-weight: 700; letter-spacing: 0.3px; }
 .mission-hero h1 { margin: 2px 0 6px; }
+.mission-hero__main { min-width: 0; }
+/* Le chauffeur se lit d'aussi loin que le nom de la mission : c'est
+   l'information qu'on vient vérifier sur cette fiche. */
+.mission-hero__driver { font-size: 17px; font-weight: 700; color: var(--ink-soft); margin: -2px 0 8px; }
+/* Documents (aperçu / téléchargements) : coin supérieur droit de la carte. */
+.mission-hero__docs { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
 .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 18px 0; }
 .meta-grid .item .label { font-size: 11.5px; text-transform: uppercase; color: var(--muted); font-weight: 700; letter-spacing: 0.3px; }
 .meta-grid .item .value { font-size: 15px; margin-top: 3px; }
@@ -299,8 +326,9 @@ table.edit-rows td { position: relative; }
 .estimate-result--error { color: var(--err-text); }
 
 /* Récap du tableau Trajets : km total, heures de conduite, amplitude */
+.legs-summary__sep { color: var(--muted); }
 .legs-summary {
-  display: flex; gap: 8px 20px; flex-wrap: wrap; font-size: 13px; color: var(--ink);
+  display: flex; gap: 8px 10px; flex-wrap: wrap; font-size: 13px; color: var(--ink);
   background: var(--surface-alt); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 10px 14px; margin-bottom: 10px;
 }
@@ -522,24 +550,39 @@ footer.app-footer { text-align: center; color: var(--muted); font-size: 12px; pa
   .planning-grid { display: block; }
 }
 
+/* Sous 900 px, l'agenda reste la vue par défaut, mais le bouton de bascule
+   (planning.js) permet d'afficher la vraie grille hebdomadaire : elle garde
+   des colonnes lisibles et défile horizontalement. */
+.planning-view-toggle { display: none; }
+@media (max-width: 899px) {
+  .planning-view-toggle { display: inline-flex; }
+  body.planning-mobile-grid .planning-agenda { display: none; }
+  body.planning-mobile-grid .planning-grid { display: block; overflow-x: auto; overflow-y: hidden; }
+  /* Les trois rangées (jours, toute la journée, heures) partagent la même
+     largeur : elles défilent ensemble sous l'ascenseur de .planning-grid. */
+  body.planning-mobile-grid .planning-grid__row { min-width: 760px; }
+  body.planning-mobile-grid .planning-grid__scroll { overflow: visible; }
+}
+
 /* ------------------------------------------------------------ responsive */
 .topbar__nav { overflow-x: auto; scrollbar-width: none; }
 .topbar__nav::-webkit-scrollbar { display: none; }
 .topbar__nav a { white-space: nowrap; }
 
 @media (max-width: 720px) {
-  .topbar { gap: 14px; padding: 0 12px; height: 54px; }
+  .topbar { gap: 10px; padding: 0 12px; height: 54px; }
   .topbar__brand img { height: 22px; }
-  .topbar__nav a { padding: 8px 10px; font-size: 13.5px; }
-  /* Le menu ne tient pas sur un téléphone : il défile, et un dégradé sur
-     le bord droit montre qu'il reste des entrées à faire glisser. */
-  .topbar__nav { overflow-x: auto; scrollbar-width: none; }
-  .topbar__nav::-webkit-scrollbar { display: none; }
+  /* Le menu ne tient pas sur un téléphone : il se replie derrière le bouton
+     hamburger et se déploie sous la barre, une entrée par ligne. */
+  .topbar__burger { display: inline-flex; }
   .topbar__nav {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+    display: none; position: absolute; top: 100%; left: 0; right: 0;
+    flex: none; flex-direction: column; gap: 2px; padding: 8px 10px 12px;
+    background: var(--chrome); box-shadow: 0 14px 28px rgba(0,0,0,.35);
+    overflow: visible; -webkit-mask-image: none; mask-image: none;
   }
-  .topbar__nav a { white-space: nowrap; }
+  .topbar.is-nav-open .topbar__nav { display: flex; }
+  .topbar__nav a { padding: 11px 12px; font-size: 15px; white-space: nowrap; }
   /* Place comptée : on garde le bouton de déconnexion, pas le nom. */
   .topbar__user { gap: 6px; }
   .topbar__user-name { display: none; }
@@ -553,6 +596,12 @@ footer.app-footer { text-align: center; color: var(--muted); font-size: 12px; pa
   .page-head h1 { font-size: 19px; }
   .page-head > .btn, .page-head > form { width: 100%; }
   .page-head > .btn, .page-head > form .btn { justify-content: center; width: 100%; }
+  .page-head__actions { width: 100%; }
+  .page-head__actions > .btn, .page-head__actions > .share-panel { flex: 1 1 100%; justify-content: center; }
+  /* Fiche mission : les boutons de documents repassent sous le titre, sur
+     toute la largeur — il n'y a plus de « coin supérieur droit » utile. */
+  .mission-hero__docs { margin-left: 0; justify-content: flex-start; }
+  .notes-panel__resize { display: none; }
 
   /* 16px minimum : sinon iOS zoome sur le champ au focus */
   input[type=text], input[type=email], input[type=tel], input[type=date], input[type=number],
@@ -742,6 +791,17 @@ input.is-computed {
   border-top: 1px solid var(--line); background: var(--paper);
 }
 .notes-panel__foot .hint.is-error { color: var(--err-text); font-weight: 700; }
+/* Poignée de redimensionnement : coin haut-gauche, puisque le panneau est
+   ancré en bas à droite (voir notes.js). Posée sur l'en-tête sombre, d'où
+   le trait clair. */
+.notes-panel__resize {
+  position: absolute; top: 0; left: 0; width: 14px; height: 14px; z-index: 2;
+  cursor: nwse-resize; touch-action: none;
+  background: linear-gradient(315deg, transparent 58%, rgba(255,255,255,.45) 58%,
+                              rgba(255,255,255,.45) 66%, transparent 66%,
+                              transparent 78%, rgba(255,255,255,.45) 78%,
+                              rgba(255,255,255,.45) 86%, transparent 86%);
+}
 .topbar__icon-btn.is-active { background: var(--red); border-color: var(--red); color: #fff; }
 
 /* ------------------------------------------------------- missions liées */
@@ -831,9 +891,23 @@ input.linked-dialog__filter { width: auto; margin: 0 20px 12px; }
 }
 .float-panel__body .hint { margin: 6px 2px; font-size: 13px; color: var(--muted); }
 .float-panel__body .hint.is-error { color: var(--err-text); font-weight: 700; }
-.float-panel__resize {
-  position: absolute; right: 0; bottom: 0; width: 16px; height: 16px;
-  cursor: nwse-resize; touch-action: none;
+/* Redimensionnement : une poignée par bord et par coin. Les coins passent
+   au-dessus des bords pour rester saisissables, et restent assez petits
+   pour ne pas manger les boutons de l'en-tête. Seul celui du bas à droite
+   est dessiné — les autres sont des zones de saisie invisibles, comme dans
+   une fenêtre du système. */
+.float-panel__resize { position: absolute; touch-action: none; }
+.float-panel__resize--n { top: 0; left: 0; right: 0; height: 5px; cursor: ns-resize; }
+.float-panel__resize--s { bottom: 0; left: 0; right: 0; height: 5px; cursor: ns-resize; }
+.float-panel__resize--e { top: 0; bottom: 0; right: 0; width: 5px; cursor: ew-resize; }
+.float-panel__resize--w { top: 0; bottom: 0; left: 0; width: 5px; cursor: ew-resize; }
+.float-panel__resize--ne, .float-panel__resize--nw,
+.float-panel__resize--se, .float-panel__resize--sw { width: 10px; height: 10px; z-index: 2; }
+.float-panel__resize--nw { top: 0; left: 0; cursor: nwse-resize; }
+.float-panel__resize--ne { top: 0; right: 0; cursor: nesw-resize; }
+.float-panel__resize--sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.float-panel__resize--se {
+  right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize;
   background: linear-gradient(135deg, transparent 55%, var(--muted) 55%, var(--muted) 62%,
                               transparent 62%, transparent 75%, var(--muted) 75%, var(--muted) 82%,
                               transparent 82%);

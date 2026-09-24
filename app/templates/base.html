@@ -17,17 +17,29 @@
     <div class="topbar__brand">
       <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Transports KENT">
     </div>
+    {# Téléphone : le menu se replie derrière ce bouton (voir le script en
+       bas de page). Masqué par le CSS sur les écrans larges, où le menu
+       tient en entier dans la barre. #}
+    {% if not current_user or not current_user.must_change_password %}
+    <button type="button" class="topbar__burger" id="topbar-burger"
+            aria-label="Menu" aria-expanded="false" aria-controls="topbar-nav">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+    {% endif %}
     {# Un chauffeur non administrateur n'a accès qu'à son planning et à ses
        ordres de mission : le reste du menu est masqué (et refusé côté
        serveur par app/auth.py:DRIVER_ENDPOINTS). Pendant un renouvellement
        de mot de passe obligatoire, le menu disparaît entièrement. #}
-    <nav class="topbar__nav">
+    <nav class="topbar__nav" id="topbar-nav">
       {% if not current_user or not current_user.must_change_password %}
       <a href="{{ url_for('planning.calendar_view') }}" class="{{ 'active' if request.blueprint == 'planning' }}">Planning</a>
       <a href="{{ url_for('missions.list_missions_view') }}" class="{{ 'active' if request.blueprint == 'missions' }}">Ordres de mission</a>
       {% if is_admin %}
       <a href="{{ url_for('drivers.list_drivers_view') }}" class="{{ 'active' if request.blueprint == 'drivers' }}">Personnel</a>
-      <a href="{{ url_for('vehicles.list_vehicles_view') }}" class="{{ 'active' if request.blueprint == 'vehicles' }}">Véhicules</a>
+      <a href="{{ url_for('vehicles.list_vehicles_view') }}" class="{{ 'active' if request.blueprint == 'vehicles' }}">Véhicules{% if vehicle_ct_alerts %}<span class="topbar__count" title="{{ vehicle_ct_alerts }} contrôle(s) technique(s) à faire sous 30 jours">{{ vehicle_ct_alerts }}</span>{% endif %}</a>
       <a href="{{ url_for('clients.list_clients_view') }}" class="{{ 'active' if request.blueprint == 'clients' }}">Clients</a>
       <a href="{{ url_for('templates_admin.list_templates_view') }}" class="{{ 'active' if request.blueprint == 'templates_admin' }}">Templates</a>
       {% endif %}
@@ -104,6 +116,9 @@
     <div class="notes-panel__foot">
       <span id="notes-status" class="hint"></span>
     </div>
+    {# Poignée en haut à gauche : le panneau est ancré en bas à droite, il
+       s'agrandit donc vers l'intérieur de la page (voir notes.js). #}
+    <div class="notes-panel__resize" data-notes-resize aria-hidden="true"></div>
   </aside>
   <script src="{{ url_for('static', filename='js/notes.js') }}"></script>
   {% endif %}
@@ -113,6 +128,29 @@
   {% endif %}
 
   <script>
+    // Téléphone : le bouton hamburger déplie le menu sous la barre du haut.
+    // Le menu se referme dès qu'on clique ailleurs ou qu'on appuie sur Échap
+    // — sur un écran large, le CSS l'affiche de toute façon en entier.
+    (function () {
+      var burger = document.getElementById("topbar-burger");
+      var bar = burger && burger.closest(".topbar");
+      if (!burger || !bar) return;
+      function setOpen(open) {
+        bar.classList.toggle("is-nav-open", open);
+        burger.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+      burger.addEventListener("click", function (e) {
+        e.stopPropagation();
+        setOpen(!bar.classList.contains("is-nav-open"));
+      });
+      document.addEventListener("click", function (e) {
+        if (!bar.contains(e.target)) setOpen(false);
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") setOpen(false);
+      });
+    })();
+
     // Mobile : les tableaux s'affichent en cartes empilées, chaque cellule
     // précédée du titre de sa colonne (data-label, lu par le CSS). Observé
     // pour couvrir aussi les lignes ajoutées dynamiquement (formulaire OM).

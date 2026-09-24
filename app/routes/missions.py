@@ -1,4 +1,3 @@
-from datetime import date, timedelta
 from pathlib import Path
 
 from flask import (
@@ -10,7 +9,7 @@ from app import repo
 from app.auth import current_user, is_admin, wants_json
 from app.config import COMPANY, RANDSTAD_EMAIL, GOOGLE_MAPS_API_KEY
 from app.pdf_service import (
-    generate_mission_pdf, extract_pdf_pages, PdfGenerationError,
+    generate_mission_pdf, generate_bc_pdf, extract_pdf_pages, PdfGenerationError,
     POSITION_BEFORE_OM, POSITION_AFTER_OM, POSITION_AFTER_BC,
 )
 from app.email_service import send_mission_email, send_bulk_email, EmailError
@@ -18,8 +17,8 @@ from app.routing import estimate_route, format_duration, add_minutes, build_driv
 from app.routes.settings import get_address_search_provider
 from app.utils import (
     balance_passenger_counts, day_label, fmt_date_full, fmt_date_long, fmt_date_short,
-    fmt_hours_minutes, fmt_time, legs_time_summary, normalize_time, service_time_range,
-    shuttle_number,
+    fmt_hours_minutes, fmt_time, legs_time_summary, normalize_time, now_paris,
+    service_time_range, shuttle_number,
 )
 
 bp = Blueprint("missions", __name__, url_prefix="/missions")
@@ -207,15 +206,18 @@ def list_missions_view():
 
     # L'onglet pose une borne de date automatique, combinée (ET) avec les
     # bornes saisies dans les filtres : c'est la plus restrictive qui gagne.
-    today = date.today().isoformat()
+    # La journée en cours appartient aux deux onglets : c'est l'heure de fin
+    # de service qui tranche, mission par mission (repo._service_cutoff).
+    now = now_paris()
+    today = now.date().isoformat()
+    cutoff = (tab, today, now.strftime("%H:%M"))
     if tab == "past":
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
-        eff_from, eff_to = date_from, min(date_to, yesterday) if date_to else yesterday
+        eff_from, eff_to = date_from, min(date_to, today) if date_to else today
     else:
         eff_from, eff_to = (max(date_from, today) if date_from else today), date_to
 
     criteria = dict(driver_id=driver_id, date_from=eff_from, date_to=eff_to,
-                    status=status, name=name)
+                    status=status, name=name, service_cutoff=cutoff)
     total = repo.count_missions(**criteria)
     total_pages = max(1, -(-total // PER_PAGE))  # division entière arrondie au supérieur
     page = min(max(request.args.get("page", type=int) or 1, 1), total_pages)
@@ -283,7 +285,7 @@ def new_mission():
     return render_template("missions/form.html", is_new=True, **_form_context({
         "status": "brouillon", "motif": "Transport Occasionnel",
         "driver_id": None, "client_id": None, "om_template_id": None, "bc_template_id": None,
-        "mission_date": "", "mission_name": "", "emission_date": date.today().isoformat(),
+        "mission_date": "", "mission_name": "", "emission_date": now_paris().date().isoformat(),
         "shuttle_label": "", "price": "", "remarks": "",
         "bc_client_name": "", "bc_client_address": "", "bc_client_postal_code": "",
         "bc_client_city": "", "bc_client_phone": "",
@@ -524,6 +526,25 @@ def mission_pdf(mission_id):
     return Response(
         pdf_bytes, mimetype="application/pdf",
         headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
+    )
+
+
+@bp.route("/<int:mission_id>/bc.pdf")
+def mission_bc_pdf(mission_id):
+    """Billet Collectif seul, en téléchargement (« Télécharger BC ») —
+    le PDF complet, lui, reste sur /pdf."""
+    mission = repo.get_mission(mission_id)
+    if not mission:
+        abort(404)
+    _require_mission_access(mission)
+    try:
+        pdf_bytes, filename = generate_bc_pdf(mission_id)
+    except PdfGenerationError as e:
+        flash(str(e), "error")
+        return redirect(url_for("missions.detail_mission", mission_id=mission_id))
+    return Response(
+        pdf_bytes, mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

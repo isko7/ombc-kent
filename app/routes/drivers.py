@@ -31,6 +31,7 @@ def _form_to_data(form):
         # sans tenir compte de la casse, autant le stocker d'une seule façon.
         "username": form.get("username", "").strip().lower() or None,
         "notes": form.get("notes", "").strip() or None,
+        "remarks": form.get("remarks", "").strip() or None,
     }
 
 

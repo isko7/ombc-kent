@@ -116,3 +116,19 @@ def _register_auth_guard(app):
     @app.context_processor
     def inject_current_user():
         return {"current_user": current_user(), "is_admin": is_admin()}
+
+    @app.context_processor
+    def inject_vehicle_alerts():
+        """Pastille rouge du menu Véhicules : nombre de véhicules dont le
+        contrôle technique arrive à échéance (ou est dépassé). Réservée aux
+        administrateurs — les seuls à voir cette entrée de menu — et muette
+        si la base ne répond pas : une pastille ne doit pas casser une page."""
+        if not is_admin():
+            return {"vehicle_ct_alerts": 0}
+        from app import repo
+        from app.routes.vehicles import ct_alert_deadline
+        try:
+            return {"vehicle_ct_alerts": repo.count_vehicles_ct_due(ct_alert_deadline())}
+        except Exception as e:
+            app.logger.warning("Comptage des contrôles techniques impossible : %s", e)
+            return {"vehicle_ct_alerts": 0}

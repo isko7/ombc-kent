@@ -1,25 +1,46 @@
+from datetime import date, timedelta
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 
 from app import repo
 
 bp = Blueprint("vehicles", __name__, url_prefix="/vehicules")
 
+# Un contrôle technique est « à faire » dès qu'il tombe dans les 30 jours
+# (ou qu'il est dépassé) : c'est ce qui allume la pastille rouge du menu
+# Véhicules et surligne la ligne dans la liste.
+CT_ALERT_DAYS = 30
+
+
+def ct_alert_deadline():
+    """Date limite 'YYYY-MM-DD' au-delà de laquelle un contrôle technique
+    n'est pas encore signalé."""
+    return (date.today() + timedelta(days=CT_ALERT_DAYS)).isoformat()
+
 
 def _form_to_data(form):
     seats = form.get("seats", "").strip()
+    km = form.get("last_maintenance_km", "").strip().replace(" ", "")
     return {
         "name": form.get("name", "").strip() or None,
         "plate": form.get("plate", "").strip().upper(),
         "seats": int(seats) if seats.isdigit() else None,
         "active": form.get("active") == "on",
         "notes": form.get("notes", "").strip() or None,
+        "remarks": form.get("remarks", "").strip() or None,
+        # Champs <input type="date"> : déjà au format 'YYYY-MM-DD', stockés
+        # tels quels (comme missions.mission_date).
+        "technical_control_date": form.get("technical_control_date", "").strip() or None,
+        "maintenance_date": form.get("maintenance_date", "").strip() or None,
+        "last_maintenance_km": int(km) if km.isdigit() else None,
     }
 
 
 @bp.route("/")
 def list_vehicles_view():
     vehicles = repo.list_vehicles()
-    return render_template("vehicles/list.html", vehicles=vehicles)
+    return render_template("vehicles/list.html", vehicles=vehicles,
+                           ct_deadline=ct_alert_deadline())
 
 
 @bp.route("/nouveau", methods=["GET", "POST"])

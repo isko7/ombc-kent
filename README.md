@@ -84,9 +84,11 @@ véhicules, clients et missions.
 ## Schéma de données
 
 ```
-drivers        chauffeurs (+ accès appli : can_login, is_admin,
-               must_change_password, username, password_hash)
-vehicles       véhicules
+crew           personnel : chauffeurs et autres (+ accès appli :
+               can_login, is_admin, must_change_password, username,
+               password_hash). Anciennement « drivers » : le renommage est
+               joué automatiquement au démarrage (db.TABLE_RENAMES)
+vehicles       véhicules (+ suivi : contrôle technique, entretien, km)
 clients        donneurs d'ordre, réutilisables
 templates      gabarits OM/BC (type, html, version, actif)
 missions       un ordre de mission (chauffeur, date, motif, client, statut...)

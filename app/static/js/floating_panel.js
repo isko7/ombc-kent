@@ -1,14 +1,19 @@
 // Panneau flottant, non modal : on le consulte sans quitter la page — fiche
 // d'une mission liée (linked_missions.js), document agrandi ou aperçu du
-// PDF (pdf_viewer.js). Déplaçable par son titre, redimensionnable par son
-// coin ; taille et position mémorisées par le navigateur. Sur téléphone,
-// le CSS le pose en bas de l'écran, sans position ni taille imposées.
+// PDF (pdf_viewer.js). Déplaçable par son titre, redimensionnable par ses
+// quatre bords et ses quatre coins ; taille et position mémorisées par le
+// navigateur. Sur téléphone, le CSS le pose en bas de l'écran, sans
+// position ni taille imposées.
 //
 // KentFloat.create({name, label, storageKey, ...}) construit le panneau et
 // renvoie {panel, body, open({title, href}), close()} ; le contenu va dans
 // body.
 window.KentFloat = window.KentFloat || (function () {
   const MARGIN = 12;
+  const MIN_WIDTH = 320;
+  const MIN_HEIGHT = 240;
+  // Une poignée par bord et par coin ; la lettre dit quels côtés bougent.
+  const RESIZE_DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
   const narrow = window.matchMedia("(max-width: 720px)");
   let front = 35;  // z-index du dernier panneau ouvert ou saisi
 
@@ -32,7 +37,8 @@ window.KentFloat = window.KentFloat || (function () {
                 title="Fermer" aria-label="Fermer">&times;</button>
       </div>
       <div class="float-panel__body" data-float-body></div>
-      <div class="float-panel__resize" data-float-resize aria-hidden="true"></div>`;
+      ${RESIZE_DIRS.map((dir) => `<div class="float-panel__resize float-panel__resize--${dir}"
+           data-float-resize="${dir}" aria-hidden="true"></div>`).join("")}`;
     document.body.appendChild(panel);
     const title = panel.querySelector("[data-float-title]");
     const openTab = panel.querySelector("[data-float-open]");
@@ -65,8 +71,8 @@ window.KentFloat = window.KentFloat || (function () {
         style.left = style.top = style.width = style.height = "";
         return;
       }
-      const width = Math.max(320, Math.min(g.width, window.innerWidth - 2 * MARGIN));
-      const height = Math.max(240, Math.min(g.height, window.innerHeight - 2 * MARGIN));
+      const width = Math.max(MIN_WIDTH, Math.min(g.width, window.innerWidth - 2 * MARGIN));
+      const height = Math.max(MIN_HEIGHT, Math.min(g.height, window.innerHeight - 2 * MARGIN));
       style.left = Math.max(MARGIN, Math.min(g.left, window.innerWidth - width - MARGIN)) + "px";
       style.top = Math.max(MARGIN, Math.min(g.top, window.innerHeight - height - MARGIN)) + "px";
       style.width = width + "px";
@@ -101,8 +107,29 @@ window.KentFloat = window.KentFloat || (function () {
     }
     onDrag(panel.querySelector("[data-float-drag]"), (r, dx, dy) =>
       ({ left: r.left + dx, top: r.top + dy, width: r.width, height: r.height }));
-    onDrag(panel.querySelector("[data-float-resize]"), (r, dx, dy) =>
-      ({ left: r.left, top: r.top, width: r.width + dx, height: r.height + dy }), true);
+
+    // Tirer un bord nord/ouest déplace aussi le coin opposé : la taille
+    // minimale est appliquée ici, sinon le panneau continuerait de glisser
+    // une fois rétréci au maximum.
+    function resizeGeometry(dir) {
+      return (r, dx, dy) => {
+        const g = { left: r.left, top: r.top, width: r.width, height: r.height };
+        if (dir.includes("e")) g.width = Math.max(MIN_WIDTH, r.width + dx);
+        if (dir.includes("s")) g.height = Math.max(MIN_HEIGHT, r.height + dy);
+        if (dir.includes("w")) {
+          g.width = Math.max(MIN_WIDTH, r.width - dx);
+          g.left = r.left + r.width - g.width;
+        }
+        if (dir.includes("n")) {
+          g.height = Math.max(MIN_HEIGHT, r.height - dy);
+          g.top = r.top + r.height - g.height;
+        }
+        return g;
+      };
+    }
+    panel.querySelectorAll("[data-float-resize]").forEach((handle) => {
+      onDrag(handle, resizeGeometry(handle.getAttribute("data-float-resize")), true);
+    });
 
     window.addEventListener("resize", () => {
       if (panel.hidden) return;

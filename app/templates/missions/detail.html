@@ -1,13 +1,15 @@
 {% extends "base.html" %}
-{% block title %}{{ mission.reference }}{% endblock %}
+{# Onglet du navigateur : « nom de mission — chauffeur », plus parlant que
+   la référence quand plusieurs OM sont ouverts côte à côte. #}
+{% block title %}{{ mission.mission_name or mission.reference }} — {{ mission.driver.last_name }} {{ mission.driver.first_name }}{% endblock %}
 {% block content %}
   {# Pas dans le panneau d'une mission liée : « Aperçu PDF » y reste un lien. #}
   {% if not embed %}{% include "missions/_pdf_tools.html" %}{% endif %}
   <div class="card mission-hero">
-    <div>
+    <div class="mission-hero__main">
       <div class="ref">{{ mission.reference }}</div>
       <h1>{{ mission.mission_name or (mission.driver.last_name ~ ' ' ~ mission.driver.first_name) }}</h1>
-      {% if mission.mission_name %}<div class="hint" style="margin:-4px 0 8px;">{{ mission.driver.last_name }} {{ mission.driver.first_name }}</div>{% endif %}
+      {% if mission.mission_name %}<div class="mission-hero__driver">{{ mission.driver.last_name }} {{ mission.driver.first_name }}</div>{% endif %}
       {% if mission.status != 'envoyé' %}<span class="badge badge--{{ mission.status }}">{{ mission.status }}</span>{% endif %}
       {% if mission.sent_randstad_at or mission.sent_driver_at %}
       <div class="flag-row">
@@ -15,21 +17,45 @@
         {% if mission.sent_driver_at %}<span class="flag flag--driver" title="Envoyé au chauffeur le {{ mission.sent_driver_at }}">✓ Envoyé au chauffeur</span>{% endif %}
       </div>
       {% endif %}
-    </div>
-    <div class="btn-row" style="margin-top:0;">
-      <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id, inline=1) }}" target="_blank" class="btn btn--secondary"
-         data-pdf-preview data-pdf-title="Aperçu PDF — {{ mission.mission_name or mission.reference }}">👁 Aperçu PDF</a>
-      <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id) }}" class="btn btn--secondary">⬇ Télécharger PDF</a>
       {% if is_admin %}
-      <a href="{{ url_for('missions.email_mission', mission_id=mission.id) }}" class="btn btn--primary">✉ Envoyer par email</a>
-      <a href="{{ url_for('missions.edit_mission', mission_id=mission.id) }}" class="btn btn--secondary">Modifier</a>
-      <form method="post" action="{{ url_for('missions.duplicate_mission', mission_id=mission.id) }}" style="margin:0;">
-        <button type="submit" class="btn btn--secondary">⧉ Dupliquer</button>
-      </form>
-      <form method="post" action="{{ url_for('missions.create_return_mission', mission_id=mission.id) }}" style="margin:0;">
-        <button type="submit" class="btn btn--secondary">↩ Créer le retour</button>
-      </form>
+      <div class="btn-row">
+        <a href="{{ url_for('missions.edit_mission', mission_id=mission.id) }}" class="btn btn--secondary">Modifier</a>
+        <form method="post" action="{{ url_for('missions.duplicate_mission', mission_id=mission.id) }}" style="margin:0;">
+          <button type="submit" class="btn btn--secondary">⧉ Dupliquer</button>
+        </form>
+        <form method="post" action="{{ url_for('missions.create_return_mission', mission_id=mission.id) }}" style="margin:0;">
+          <button type="submit" class="btn btn--secondary">↩ Créer le retour</button>
+        </form>
+        {# Les deux envois ferment la rangée, réduits à leur icône : bleu
+           pour Randstad, rouge pour le chauffeur — les couleurs des deux
+           indicateurs d'envoi affichés au-dessus. #}
+        <a href="{{ url_for('missions.bulk_email', mission_ids=mission.id) }}"
+           class="btn btn--blue btn--icon" title="Envoyer à Randstad" aria-label="Envoyer à Randstad">
+          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"
+               fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 3 10.5 13.5M21 3l-6.5 18-4-8-8-4L21 3z"/>
+          </svg>
+        </a>
+        <a href="{{ url_for('missions.email_mission', mission_id=mission.id) }}"
+           class="btn btn--primary btn--icon" title="Envoyer par email au chauffeur"
+           aria-label="Envoyer par email au chauffeur">
+          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"
+               fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 5h18v14H3z"/><path d="m3 6 9 7 9-7"/>
+          </svg>
+        </a>
+      </div>
       {% endif %}
+    </div>
+    {# Documents : coin supérieur droit de la carte. #}
+    <div class="mission-hero__docs">
+      <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id, inline=1) }}" target="_blank" class="btn btn--secondary btn--sm"
+         data-pdf-preview data-pdf-title="Aperçu PDF — {{ mission.mission_name or mission.reference }}">👁 Aperçu PDF</a>
+      <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id) }}" class="btn btn--secondary btn--sm">⬇ Télécharger PDF</a>
+      <a href="{{ url_for('missions.mission_bc_pdf', mission_id=mission.id) }}" class="btn btn--secondary btn--sm"
+         title="Billet collectif seul, sans l'OM ni les pièces jointes">⬇ Télécharger BC</a>
     </div>
   </div>
 
@@ -93,9 +119,11 @@
     </table>
     {% if legs_summary %}
     <div class="legs-summary">
-      <span><span>{{ legs_summary.driving | fmt_hours_minutes }}</span> de conduite</span>
-      <span><span>{{ legs_summary.pause | fmt_hours_minutes }}</span> de pause</span>
-      <span>amplitude <span>{{ legs_summary.amplitude | fmt_hours_minutes }}</span></span>
+      <span>Amplitude : <strong>{{ legs_summary.amplitude | fmt_hours_minutes }}</strong></span>
+      <span class="legs-summary__sep" aria-hidden="true">-</span>
+      <span>Temps de conduite : <strong>{{ legs_summary.driving | fmt_hours_minutes }}</strong></span>
+      <span class="legs-summary__sep" aria-hidden="true">-</span>
+      <span>Temps de pause : <strong>{{ legs_summary.pause | fmt_hours_minutes }}</strong></span>
     </div>
     {% endif %}
     {% else %}

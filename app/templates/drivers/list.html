@@ -13,7 +13,7 @@
     {% if drivers %}
     <table class="data-table">
       <thead>
-        <tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Statut</th><th>Accès appli</th><th></th></tr>
+        <tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Chauffeur</th><th>Accès appli</th><th></th></tr>
       </thead>
       <tbody>
         {% for d in drivers %}
@@ -26,7 +26,9 @@
           </td>
           <td>{{ d.email }}</td>
           <td>{{ d.phone or '—' }}</td>
-          <td>{% if d.active %}<span class="badge badge--envoyé">Actif</span>{% else %}<span class="badge badge--inactive">Inactif</span>{% endif %}</td>
+          {# `active` = la personne conduit : elle apparaît alors dans le
+             choix du chauffeur d'une mission et sur le planning. #}
+          <td>{% if d.active %}<span class="badge badge--envoyé">Oui</span>{% else %}<span class="badge badge--inactive">Non</span>{% endif %}</td>
           <td>
             {% if d.can_login %}
               <span class="flag flag--access">{{ d.username }}</span>

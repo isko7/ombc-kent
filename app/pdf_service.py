@@ -309,6 +309,28 @@ def _attachment_to_pdf_bytes(attachment) -> bytes:
     return buf.getvalue()
 
 
+def _mission_filename(mission, prefix=""):
+    driver = mission["driver"]
+    date_compact = (mission["mission_date"] or "").replace("-", "")
+    return f"{prefix}{driver['last_name'].upper()}_{date_compact}.pdf"
+
+
+def generate_bc_pdf(mission_id: int):
+    """Billet Collectif seul (bouton « Télécharger BC » de la fiche) :
+    ni l'Ordre de Mission, ni les pièces jointes."""
+    mission = repo.get_mission(mission_id)
+    if not mission:
+        raise PdfGenerationError("Mission introuvable")
+    bc_template = (
+        repo.get_template(mission["bc_template_id"]) if mission.get("bc_template_id")
+        else repo.get_active_template("BC")
+    )
+    if not bc_template:
+        raise PdfGenerationError("Aucun template actif pour le BC (voir Réglages > Templates)")
+    pdf_bytes = render_template_string(bc_template["definition_html"], build_bc_context(mission))
+    return pdf_bytes, _mission_filename(mission, prefix="BC_")
+
+
 def generate_mission_pdf(mission_id: int):
     """Retourne (pdf_bytes, filename) pour la mission donnée."""
     mission = repo.get_mission(mission_id)
@@ -362,8 +384,4 @@ def generate_mission_pdf(mission_id: int):
 
     buf = BytesIO()
     writer.write(buf)
-
-    driver = mission["driver"]
-    date_compact = (mission["mission_date"] or "").replace("-", "")
-    filename = f"{driver['last_name'].upper()}_{date_compact}.pdf"
-    return buf.getvalue(), filename
+    return buf.getvalue(), _mission_filename(mission)

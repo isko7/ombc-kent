@@ -115,5 +115,64 @@
     }
   });
 
+  // Taille du panneau, réglable par la poignée du coin haut-gauche (il est
+  // ancré en bas à droite) et mémorisée comme son état ouvert/fermé. La
+  // largeur porte sur le panneau, la hauteur sur la zone de saisie : le
+  // reste (en-tête, pied) garde sa hauteur propre.
+  const SIZE_KEY = "kent.notes.size";
+  const MIN_WIDTH = 260;
+  const MIN_HEIGHT = 120;
+  const grip = panel.querySelector("[data-notes-resize]");
+
+  function applySize(size) {
+    if (!size) return;
+    panel.style.width = size.width + "px";
+    text.style.height = size.height + "px";
+  }
+  function clampSize(width, height) {
+    return {
+      width: Math.max(MIN_WIDTH, Math.min(width, window.innerWidth - 24)),
+      height: Math.max(MIN_HEIGHT, Math.min(height, window.innerHeight - 180)),
+    };
+  }
+  function savedSize() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SIZE_KEY));
+      if (s && typeof s.width === "number" && typeof s.height === "number") return clampSize(s.width, s.height);
+    } catch (e) { /* rien de mémorisé */ }
+    return null;
+  }
+
+  applySize(savedSize());
+
+  if (grip) {
+    grip.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const x = e.clientX;
+      const y = e.clientY;
+      const startWidth = panel.getBoundingClientRect().width;
+      const startHeight = text.getBoundingClientRect().height;
+      let size = null;
+      const move = (ev) => {
+        // Ancré en bas à droite : tirer vers le haut/la gauche agrandit.
+        size = clampSize(startWidth + (x - ev.clientX), startHeight + (y - ev.clientY));
+        applySize(size);
+      };
+      const end = () => {
+        grip.removeEventListener("pointermove", move);
+        grip.removeEventListener("pointerup", end);
+        grip.removeEventListener("pointercancel", end);
+        try {
+          if (size) localStorage.setItem(SIZE_KEY, JSON.stringify(size));
+        } catch (err) { /* tant pis */ }
+      };
+      grip.setPointerCapture(e.pointerId);
+      grip.addEventListener("pointermove", move);
+      grip.addEventListener("pointerup", end);
+      grip.addEventListener("pointercancel", end);
+    });
+  }
+
   setOpen(wasOpen(), false);
 })();
