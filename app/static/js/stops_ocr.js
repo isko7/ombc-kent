@@ -119,11 +119,21 @@
   }
 
   // ------------------------------------------------- lecture d'un plan
+  // En dessous, ce que l'OCR a « lu » n'est pas du texte : les filets du
+  // tableau, le bord d'un tampon, une lettre coupée. Sur les plans scannés
+  // mesurés, ce bruit plafonne à 26 quand le vrai texte ne descend pas
+  // sous 61 — le seuil se pose entre les deux, assez bas pour garder un
+  // mot pâle, assez haut pour qu'un « ee » collé devant l'heure ne fasse
+  // plus manquer tout un arrêt. Le texte d'un PDF, lui, n'a pas de
+  // confiance : il est gardé tel quel.
+  const MIN_CONFIDENCE = 40;
+
   // Mots regroupés en lignes, de haut en bas puis de gauche à droite.
   // Recalculé depuis leurs positions plutôt que repris de Tesseract, qui
   // peut ranger l'heure et le lieu dans deux blocs différents.
   function toLines(words) {
     const items = words
+      .filter((w) => w.confidence == null || w.confidence >= MIN_CONFIDENCE)
       .map((w) => Object.assign({ text: w.text.trim() }, w.bbox))
       .filter((w) => w.text)
       .sort((a, b) => (a.y0 + a.y1) - (b.y0 + b.y1));
@@ -169,17 +179,25 @@
     const heights = lines.flatMap((l) => l.words.map((w) => w.y1 - w.y0)).sort((a, b) => a - b);
     const unit = heights[Math.floor(heights.length / 2)] || 20;
 
+    // Heure qui ouvre la ligne d'un arrêt. Cherchée dans les tout premiers
+    // pixels et non en première position stricte : un scan glisse parfois
+    // un parasite devant (« ee 07:45 MAINVILLERS… »), et l'arrêt entier
+    // passait alors à la trappe. Le seuil exclut une heure citée en plein
+    // texte (« ATTERISSAGE 05H45 PARIS CDG… »).
+    const timeAt = (line) => line.words.findIndex(
+      (w, i) => w.text.match(TIME) && w.x0 - line.words[0].x0 < 2.5 * unit && line.words[i + 1]);
+
     const stops = [];
     let stop = null;
     let placeX = null;  // colonne du lieu, tant que l'adresse peut continuer à la ligne
     for (const line of lines) {
-      const [first, second] = line.words;
-      const time = second && first.text.match(TIME);
+      const at = timeAt(line);
+      const time = at >= 0 && line.words[at].text.match(TIME);
       if (time) {
         stop = { time: `${pad(time[1])}:${time[2]}`, count: null, meeting: false,
-                 place: line.words.slice(1).map((w) => w.text).join(" ") };
+                 place: line.words.slice(at + 1).map((w) => w.text).join(" ") };
         stops.push(stop);
-        placeX = second.x0;
+        placeX = line.words[at + 1].x0;
         continue;
       }
       if (!stop) continue;
@@ -195,15 +213,19 @@
       }
       // Suite du lieu : une ligne qui commence dans sa colonne ou plus à
       // droite (« AEROPORT » puis « PARIS ORLY T3 » en plus gros).
-      if (placeX !== null && first.x0 > placeX - 1.5 * unit) {
+      if (placeX !== null && line.words[0].x0 > placeX - 1.5 * unit) {
         stop.place += " " + line.text;
         continue;
       }
       placeX = null;
     }
+    // « 4 personnes au total », en pied de plan : sert à retrouver l'arrêt
+    // de rendez-vous quand son « 0 personne » n'a pas été lu.
+    const total = text.match(/(\d+)\s+personnes?\s+au\s+total/i);
     return {
       date: month >= 1 && month <= 12 ? `${when[5]}-${pad(month)}-${pad(when[2])}` : null,
       retour,
+      total: total ? Number(total[1]) : null,
       stops,
     };
   }
@@ -336,6 +358,13 @@
   function toStops(page, fallbackDate) {
     const isMeeting = (s) => s.meeting || s.count === 0;
     if (!page.stops.length) return [];
+    // « 0 personne » du rendez-vous non lu (il est souvent en couleur, et
+    // l'OCR le saute) : le total du plan le rétablit. On ne conclut que si
+    // un seul arrêt est sans compte et que les autres totalisent déjà tout
+    // le monde — sinon c'est un compte manquant comme un autre.
+    const orphans = page.stops.filter((s) => s.count == null);
+    const counted = page.stops.reduce((sum, s) => sum + (s.count || 0), 0);
+    if (orphans.length === 1 && page.total != null && counted === page.total) orphans[0].count = 0;
     const retour = page.retour !== null ? page.retour : isMeeting(page.stops[0]);
     const total = page.stops.filter((s) => !isMeeting(s)).reduce((sum, s) => sum + (s.count || 0), 0);
     return page.stops.map((s) => {

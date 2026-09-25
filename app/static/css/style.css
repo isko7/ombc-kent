@@ -318,6 +318,9 @@ table.edit-rows td { position: relative; }
   box-shadow: 0 6px 18px rgba(0, 0, 0, .12); max-height: 240px; overflow-y: auto;
 }
 .addr-suggestion { padding: 7px 10px; font-size: 13px; cursor: pointer; }
+/* Champ d'adresse hors tableau (fiche client, création rapide) : la boîte de
+   suggestions se pose sur ce conteneur. */
+.addr-field { position: relative; }
 .addr-suggestion:hover { background: var(--hover); }
 
 /* Bouton « Estimer » + résultat, sous le libellé du trajet */
@@ -811,6 +814,12 @@ input.is-computed {
 .linked-card > h2 { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* Sur mobile, les tableaux passent en display:block : hidden doit primer. */
 .linked-card table[hidden] { display: none; }
+/* Le nom mène à la fiche ; l'œil, à côté, l'ouvre dans le panneau flottant. */
+.linked-eye { margin-left: 6px; padding: 4px 6px; color: var(--muted); vertical-align: middle; }
+.linked-eye:hover { color: var(--ink); background: var(--hover); }
+.linked-eye svg { display: block; }
+/* Téléphone : cible du doigt confortable. */
+@media (max-width: 720px) { .linked-eye { padding: 8px 10px; } }
 
 .linked-dialog {
   width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
@@ -928,3 +937,100 @@ input.linked-dialog__filter { width: auto; margin: 0 20px 12px; }
 
 /* Fiche affichée dans ce panneau (?embed=1) : marges réduites. */
 .is-embed .container { padding: 16px 16px 24px; }
+
+/* --------------------------------------------------- plan de ramassage */
+/* Écran Plan de Ramassage : la liste d'adresses réordonnable et la carte. Une liste
+   plutôt qu'un tableau — le glisser-déposer d'une ligne entière y est
+   naturel, et il n'y a qu'une colonne de saisie. */
+.tour-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.tour-stop {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 6px; border: 1px solid transparent; border-radius: var(--radius);
+  background: var(--surface);
+}
+.tour-stop + .tour-stop { margin-top: 2px; }
+.tour-stop:hover { background: var(--hover-warm); }
+/* touch-action: none — sans cela, le doigt fait défiler la page au lieu de
+   déplacer la ligne (le geste n'arriverait jamais aux événements pointer). */
+.tour-stop__grip {
+  flex: none; touch-action: none; cursor: grab; user-select: none;
+  background: none; border: 0; padding: 8px 4px; margin-top: 2px;
+  color: var(--muted); font-size: 15px; line-height: 1;
+  font-family: var(--font);
+}
+.tour-stop__grip:hover { color: var(--ink); }
+.tour-stop__rank {
+  flex: none; width: 24px; height: 24px; margin-top: 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--tint); color: var(--ink-soft); border-radius: 50%;
+  font-size: 12px; font-weight: 700;
+}
+/* Heure de passage : même allure que les autres champs, largeur fixe.
+   Sélecteur `input.` pour peser autant que la règle générale des champs de
+   saisie, écrite plus haut. */
+input.tour-stop__time {
+  flex: none; width: 96px; margin-top: 2px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.tour-stop__field { flex: 1; min-width: 0; }
+/* La boîte de suggestions (.addr-suggestions) se positionne sur ce
+   conteneur : il n'entoure que le champ, pas la ligne d'étape. */
+.tour-stop__input { position: relative; }
+.tour-stop__meta {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  font-size: 12px; color: var(--muted); padding: 2px 2px 0;
+}
+.tour-stop__meta:empty { display: none; }
+.tour-stop__role:not(:empty) {
+  display: inline-block; padding: 1px 7px; border-radius: 20px;
+  background: var(--blue-bg); color: var(--blue-text);
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.tour-stop__leg { font-variant-numeric: tabular-nums; }
+.tour-stop__actions { flex: none; display: flex; align-items: center; margin-top: 4px; }
+/* Ligne en cours de déplacement : détachée du fond, pour la suivre des yeux
+   pendant que les autres se réorganisent autour d'elle. */
+.tour-stop.is-dragging {
+  background: var(--surface); border-color: var(--line-strong);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .14);
+}
+.tour-stop.is-dragging .tour-stop__grip { cursor: grabbing; }
+/* Adresse que le géocodage n'a pas reconnue. */
+.tour-stop.is-invalid input { border-color: var(--err-text); background: var(--err-bg); }
+
+/* .hint n'est stylé que dans un .field : ici les conseils vivent aussi hors
+   des champs (sous la liste, sous la carte). */
+#tour-page .hint { font-size: 12.5px; color: var(--muted); }
+/* Le calcul et les actions qu'il ouvre, détachés de la saisie par un filet. */
+.tour-actions {
+  align-items: center; border-top: 1px solid var(--line);
+  margin-top: 16px; padding-top: 16px;
+}
+.tour-actions [hidden] { display: none; }
+.tour-status { font-size: 13px; color: var(--ink-soft); margin: 14px 0 0; font-weight: 600; }
+.tour-status--error { color: var(--err-text); }
+.tour-status + .legs-summary { margin-top: 10px; }
+.tour-actions + .legs-summary { margin-top: 16px; }
+
+.tour-map { height: 480px; border-radius: var(--radius); background: var(--surface-alt); }
+/* Sans clé Google Maps : le cadre porte le message à la place de la carte. */
+.tour-map--off {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  padding: 24px; height: 200px; border: 1px dashed var(--line-strong); color: var(--muted); font-size: 13.5px;
+}
+
+@media (max-width: 720px) {
+  /* Téléphone : le numéro et la poignée restent en tête de ligne, les
+     boutons passent dessous — la largeur va au champ d'adresse. */
+  .tour-stop { flex-wrap: wrap; gap: 6px 8px; padding: 8px 6px; border-bottom: 1px solid var(--line); border-radius: 0; }
+  .tour-stop__field { flex-basis: 100%; order: 3; }
+  .tour-stop__grip { font-size: 18px; padding: 10px 8px; margin: 0; }
+  .tour-stop__rank { margin: 6px 0 0; }
+  /* 16 px minimum, comme les autres champs : sinon iOS zoome à la saisie. */
+  input.tour-stop__time { width: 104px; margin: 0; }
+  .tour-stop__actions { margin: 0 0 0 auto; }
+  /* Les boutons d'action prennent toute la largeur, comme ailleurs sur
+     téléphone : côte à côte, ils seraient trop étroits pour leur libellé. */
+  .tour-actions > .btn { flex: 1 1 100%; justify-content: center; }
+  .tour-map { height: 60vh; }
+}

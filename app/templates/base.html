@@ -42,6 +42,7 @@
       <a href="{{ url_for('vehicles.list_vehicles_view') }}" class="{{ 'active' if request.blueprint == 'vehicles' }}">Véhicules{% if vehicle_ct_alerts %}<span class="topbar__count" title="{{ vehicle_ct_alerts }} contrôle(s) technique(s) à faire sous 30 jours">{{ vehicle_ct_alerts }}</span>{% endif %}</a>
       <a href="{{ url_for('clients.list_clients_view') }}" class="{{ 'active' if request.blueprint == 'clients' }}">Clients</a>
       <a href="{{ url_for('templates_admin.list_templates_view') }}" class="{{ 'active' if request.blueprint == 'templates_admin' }}">Templates</a>
+      <a href="{{ url_for('tours.planner_view') }}" class="{{ 'active' if request.blueprint == 'tours' }}">Plan de Ramassage</a>
       {% endif %}
       {% endif %}
     </nav>

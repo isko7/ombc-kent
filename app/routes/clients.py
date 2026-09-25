@@ -1,8 +1,20 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 
 from app import repo
+from app.config import GOOGLE_MAPS_API_KEY
+from app.routes.settings import get_address_search_provider
 
 bp = Blueprint("clients", __name__, url_prefix="/clients")
+
+
+def _form_context():
+    """De quoi faire chercher l'adresse au champ « Adresse » : la clé Maps
+    (côté navigateur) et le fournisseur choisi dans « Recherche d'adresse »,
+    comme pour les arrêts d'un ordre de mission."""
+    return {
+        "google_maps_api_key": GOOGLE_MAPS_API_KEY,
+        "address_search_provider": get_address_search_provider(),
+    }
 
 
 def _form_to_data(form):
@@ -29,11 +41,11 @@ def new_client():
         data = _form_to_data(request.form)
         if not data["name"]:
             flash("Le nom est obligatoire.", "error")
-            return render_template("clients/form.html", client=data, is_new=True)
+            return render_template("clients/form.html", client=data, is_new=True, **_form_context())
         repo.create_client(data)
         flash(f"Client {data['name']} créé.", "success")
         return redirect(url_for("clients.list_clients_view"))
-    return render_template("clients/form.html", client={}, is_new=True)
+    return render_template("clients/form.html", client={}, is_new=True, **_form_context())
 
 
 @bp.route("/creation-rapide", methods=["POST"])
@@ -58,11 +70,13 @@ def edit_client(client_id):
         data = _form_to_data(request.form)
         if not data["name"]:
             flash("Le nom est obligatoire.", "error")
-            return render_template("clients/form.html", client=data, is_new=False, client_id=client_id)
+            return render_template("clients/form.html", client=data, is_new=False, client_id=client_id,
+                               **_form_context())
         repo.update_client(client_id, data)
         flash("Client mis à jour.", "success")
         return redirect(url_for("clients.list_clients_view"))
-    return render_template("clients/form.html", client=client, is_new=False, client_id=client_id)
+    return render_template("clients/form.html", client=client, is_new=False, client_id=client_id,
+                           **_form_context())
 
 
 @bp.route("/<int:client_id>/supprimer", methods=["POST"])

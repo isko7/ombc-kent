@@ -6,10 +6,9 @@
 //   déjà triées par le serveur). Sur la fiche, elle enregistre par un POST
 //   classique ; dans le formulaire, elle met à jour des champs cachés,
 //   enregistrés avec la mission.
-// - Un clic sur le nom d'une mission liée ouvre sa fiche dans un panneau
-//   flottant (iframe) : on la consulte sans quitter la page, et dans le
-//   formulaire on y recopie ce qui sert. Ctrl/⌘-clic ou clic du milieu :
-//   nouvel onglet, comme un lien ordinaire.
+// - Le nom d'une mission liée est un lien ordinaire vers sa fiche ; l'œil
+//   à côté l'ouvre dans un panneau flottant (iframe), pour la consulter
+//   sans quitter la page — et, dans le formulaire, y recopier ce qui sert.
 (function () {
   const card = document.querySelector("[data-linked-missions]");
   const dialog = document.querySelector("[data-linked-dialog]");
@@ -35,19 +34,28 @@
   const empty = card.querySelector("[data-linked-empty]");
   let rows = JSON.parse(card.querySelector("[data-linked-rows]").textContent);
 
+  // Œil du bouton « voir sans quitter la page ».
+  const EYE_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" '
+    + 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+    + 'stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>'
+    + '<circle cx="12" cy="12" r="3"/></svg>';
+
   function renderTable() {
     tbody.textContent = "";
     rows.forEach((r) => {
+      // Le nom mène à la fiche, comme n'importe quel lien.
       const link = el("a");
       link.href = r.url;
       link.appendChild(el("strong", null, r.name));
-      link.addEventListener("click", (e) => {
-        if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-        e.preventDefault();
-        openFloat(r);
-      });
-      const name = el("td");
-      name.appendChild(link);
+      // L'œil, lui, l'ouvre dans le panneau flottant.
+      const eye = el("button", "btn btn--ghost btn--sm linked-eye");
+      eye.type = "button";
+      eye.title = "Voir la fiche sans quitter la page";
+      eye.setAttribute("aria-label", "Voir la fiche de " + r.name + " sans quitter la page");
+      eye.innerHTML = EYE_SVG;
+      eye.addEventListener("click", () => openFloat(r));
+      const name = el("td", "linked-name");
+      name.append(link, eye);
       const date = el("td");
       date.append(el("div", null, r.day), el("div", null, r.date));
       const tr = el("tr");
@@ -189,18 +197,50 @@
   card.querySelector("[data-linked-open]").addEventListener("click", openDialog);
 
   // ----------------------------------------------------- panneau flottant
-  // La fiche de la mission liée, dans une iframe (vue ?embed=1 : sans barre
-  // de navigation, en lecture seule).
-  const frame = document.createElement("iframe");
-  frame.className = "float-panel__frame";
-  frame.title = "Fiche de la mission liée";
-  const float = KentFloat.create({
-    name: "mission", label: "Mission liée", storageKey: "kent.missionFloat",
-    onClose: () => { frame.src = "about:blank"; },
-  });
-  float.body.appendChild(frame);
+  // La fiche de la mission liée, dans une iframe (vue ?embed=1 : la fiche
+  // entière, sans la barre de navigation ni le pied de page). Créé au
+  // premier clic sur l'œil : une page qui ne s'en sert pas n'a pas à le
+  // porter, et le panneau dépend de floating_panel.js.
+  let float = null;
+  let frame = null;
+  let shown = "";  // fiche demandée au dernier clic sur un œil
+
+  function ensureFloat() {
+    if (float) return float;
+    frame = document.createElement("iframe");
+    frame.className = "float-panel__frame";
+    frame.title = "Fiche de la mission liée";
+    float = KentFloat.create({
+      name: "mission", label: "Mission liée", storageKey: "kent.missionFloat",
+      onClose: () => { frame.src = "about:blank"; },
+    });
+    float.body.appendChild(frame);
+    // On peut naviguer dans le panneau (l'œil d'une mission liée, à
+    // l'intérieur) : son en-tête suit alors la fiche affichée, sinon il
+    // annoncerait encore celle du premier clic.
+    frame.addEventListener("load", () => {
+      let page, title;
+      try {
+        page = frame.contentWindow.location;
+        title = frame.contentDocument.title;
+      } catch (e) {
+        return;  // about:blank à la fermeture
+      }
+      if (!title || page.pathname + page.search === shown) return;
+      float.open({ title: title.split(" — Transports KENT")[0], href: page.pathname });
+    });
+    return float;
+  }
 
   function openFloat(r) {
+    // Déjà dans le panneau (fiche d'une mission liée) : on y navigue plutôt
+    // que d'empiler un second panneau, à l'étroit dans le premier.
+    if (document.body.classList.contains("is-embed")) {
+      window.location.href = r.embed_url;
+      return;
+    }
+    ensureFloat();
+    shown = r.embed_url;
     frame.src = r.embed_url;
     float.open({ title: `${r.name} — ${r.day} ${r.date}`, href: r.url });
   }

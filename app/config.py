@@ -195,14 +195,18 @@ CALENDAR_FEED_TOKEN = env("CALENDAR_FEED_TOKEN", "")
 TOMTOM_API_KEY = env("TOMTOM_API_KEY", "")
 
 # Clé Maps JavaScript API (console.cloud.google.com), avec les API
-# « Places API » et « Distance Matrix API » activées. Contrairement à
+# « Places API », « Distance Matrix API » et « Directions API » activées
+# (cette dernière pour l'écran Plan de Ramassage). Contrairement à
 # TOMTOM_API_KEY, cette clé est utilisée UNIQUEMENT côté navigateur (c'est
 # le fonctionnement normal d'une clé « Maps JavaScript API » chez Google :
 # on la restreint par « référents HTTP » dans la console Google Cloud,
 # plutôt que de la garder secrète côté serveur). Alimente à la fois
 # l'autocomplétion d'adresse (si le réglage « Recherche d'adresse », écran
 # Réglages, est sur Google) et le bouton « Estimer avec Maps » des lignes de
-# trajet (toujours proposé, indépendamment de ce réglage). Accepte aussi
+# trajet (toujours proposé, indépendamment de ce réglage), ainsi que l'écran
+# Plan de Ramassage : carte, ordre de passage le plus court et distances par
+# la route (sans clé, l'ordre est calculé côté serveur et la carte n'est pas
+# affichée — voir app/routes/tours.py). Accepte aussi
 # NEXT_PUBLIC_GOOGLE_MAPS_API_KEY comme alias, pour reprendre une clé déjà
 # nommée ainsi ailleurs.
 GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY") or env("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY", "")

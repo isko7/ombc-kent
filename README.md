@@ -23,7 +23,11 @@ Déployée sur **Vercel** (fonctions serverless), base **MySQL**.
     de passe** d'un chauffeur d'un bouton : le mot de passe redevient
     l'identifiant, et un nouveau est exigé à la connexion suivante.
 - **Chauffeurs / Véhicules / Clients** : liste + fiche + CRUD complet. Ils
-  alimentent les menus déroulants partout où ils sont utilisés.
+  alimentent les menus déroulants partout où ils sont utilisés. L'adresse
+  d'un client se cherche comme les arrêts d'un BC (Google Maps ou Base
+  Adresse Nationale, selon le réglage « Recherche d'adresse ») : le choix
+  remplit aussi le code postal et la ville — sur la fiche client comme dans
+  la création rapide du formulaire d'ordre de mission.
 - **Ordres de mission** : un formulaire unique avec les **arrêts du Billet
   Collectif** (prises en charge / déposes, adresses, horaires, voyageurs) et
   les **trajets de l'Ordre de Mission** (début / fin / véhicule / trajet),
@@ -31,10 +35,14 @@ Déployée sur **Vercel** (fonctions serverless), base **MySQL**.
 - **Missions liées** : sur la fiche d'un OM et dans son formulaire, une
   section liste les missions liées (le lien vaut dans les deux sens). Le
   bouton « Lier des missions » ouvre une sélection multiple, les missions au
-  même code en tête de nom d'abord (`26MONTENEG A` → `26MONTENEG R`). Un clic
-  sur une mission liée ouvre sa fiche dans un panneau flottant, à côté de la
-  page : les deux restent visibles. « Créer le retour » lie d'office l'aller
-  et son retour.
+  même code en tête de nom d'abord (`26MONTENEG A` → `26MONTENEG R`). Le nom
+  d'une mission liée mène à sa fiche ; l'œil à côté l'ouvre dans un panneau
+  flottant, à côté de la page — les deux restent visibles. Le panneau montre
+  la fiche **entière** (trajets, arrêts, pièces jointes, missions liées,
+  envois, récap de facturation, boutons d'action) : ce qui s'y modifie y
+  revient, ce qui en sort (modifier, dupliquer, envoyer, supprimer) s'ouvre
+  dans un nouvel onglet. « Créer le retour » lie d'office l'aller et son
+  retour.
 - **Génération PDF** : un seul PDF = **OM + pièces jointes + BC**, fusionnés.
   Pièces jointes (PDF/PNG/JPG) insérables avant l'OM, entre l'OM et le BC
   (page 2, par défaut), ou après le BC — depuis la fiche, ou dans le
@@ -57,8 +65,27 @@ Déployée sur **Vercel** (fonctions serverless), base **MySQL**.
 - **Planning** : vue calendrier hebdomadaire des missions (grille horaire
   sur desktop, agenda par jour sur mobile), colorée par chauffeur (couleur
   personnalisable sur la fiche chauffeur), clic sur une mission → son
-  ordre de mission. Flux **iCalendar** partageable, à abonner depuis
-  Calendrier (iPhone) ou Google Agenda (Android) — voir `CALENDAR_FEED_TOKEN`.
+  ordre de mission. Flux **iCalendar** partageable (tout le monde, ou un
+  chauffeur seul) : « Partager le calendrier » donne un bouton par agenda —
+  Google Agenda (le chemin à suivre aussi pour Samsung Calendar et les autres
+  agendas Android, via le compte Google du téléphone), Calendrier iPhone, et
+  le fichier .ics à ouvrir tel quel. Voir `CALENDAR_FEED_TOKEN`.
+- **Plan de Ramassage** (écran indépendant, réservé aux administrateurs) :
+  une liste d'adresses saisies dans n'importe quel ordre — avec la même
+  recherche d'adresse que les arrêts du BC — qu'un bouton remet dans l'ordre
+  du trajet le plus court, carte à l'appui. Rien n'est imposé : le calcul
+  choisit aussi par où commencer et par où finir, le seul critère étant la
+  distance totale. Un second bouton, « Calculer l'itinéraire », trace au
+  contraire l'ordre affiché sans y toucher. L'ordre reste modifiable à la
+  main, par glisser-déposer (ou les flèches ▲▼) : la carte et les distances
+  suivent sans relancer le calcul. Un bouton ouvre l'itinéraire dans Google
+  Maps pour la navigation, un autre copie la liste. La liste est conservée
+  par le navigateur, le temps de revenir dessus.
+  **Heures de passage** : on en saisit une seule — départ, arrivée, ou
+  n'importe quel arrêt — et chaque calcul remplit les autres à partir des
+  durées de trajet, en avant comme en arrière ; la dernière heure saisie à
+  la main fait référence. Saisie libre, affichage sur 24 heures à la mode de
+  l'application : « 6 », « 630 », « 6:30 » ou « 6h30 » donnent tous « 06h30 ».
 - **Mode sombre** : bouton lune / soleil dans la barre du haut. Par défaut,
   l'application suit le réglage clair / sombre de l'appareil ; le choix fait
   avec le bouton est mémorisé par le navigateur (donc par appareil).
@@ -288,6 +315,8 @@ app/
   pdf_service.py       rendu Jinja2 -> HTML -> PDF -> fusion pypdf
   email_service.py     envoi SMTP (basic ou OAuth2 O365)
   ical_service.py       génération du flux iCalendar (planning)
+  routing.py           géocodage (BAN / TomTom), estimation de durée,
+                       ordre de passage le plus court (Plan de Ramassage)
   utils.py             formats de date/heure en français
   routes/              blueprints Flask
   templates/           pages Jinja2 (interface web)

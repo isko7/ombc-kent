@@ -10,9 +10,16 @@
       <label>Nom *</label>
       <input type="text" name="name" value="{{ client.name or '' }}" placeholder="Simplon Voyages" required>
     </div>
-    <div class="field">
+    {# Adresse cherchée chez Google Maps (ou la Base Adresse Nationale selon
+       le réglage) : le choix remplit aussi le code postal et la ville. Le
+       champ reste libre — une adresse non reconnue se tape à la main. #}
+    <div class="field" data-address-provider="{{ address_search_provider }}">
       <label>Adresse</label>
-      <input type="text" name="address" value="{{ client.address or '' }}">
+      <div class="addr-field">
+        <input type="text" name="address" id="client-address" autocomplete="off"
+               value="{{ client.address or '' }}" placeholder="14 rue du Fer à Cheval">
+      </div>
+      <div class="hint">Choisissez dans les suggestions : le code postal et la ville suivent.</div>
     </div>
     <div class="form-grid form-grid--3">
       <div class="field">
@@ -42,4 +49,30 @@
       <a href="{{ url_for('clients.list_clients_view') }}" class="btn btn--secondary">Annuler</a>
     </div>
   </form>
+
+  {% if google_maps_api_key %}
+  {# Chargé avant le script d'autocomplétion, comme sur les autres écrans. #}
+  <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&language=fr&region=FR"></script>
+  {% endif %}
+  <script src="{{ url_for('static', filename='js/address_autocomplete.js') }}"></script>
+  <script>
+    (function () {
+      var input = document.getElementById("client-address");
+      var field = input.closest("[data-address-provider]");
+      KentAddress.attach(input, {
+        provider: field.dataset.addressProvider,
+        onPick: function (item) {
+          item.details().then(function (full) {
+            input.value = full.street || item.label;
+            var set = function (name, value) {
+              var target = document.querySelector('[name="' + name + '"]');
+              if (target && value) target.value = value;
+            };
+            set("postal_code", full.postcode);
+            set("city", full.city);
+          });
+        },
+      });
+    })();
+  </script>
 {% endblock %}

@@ -5,7 +5,9 @@
    mission : les champs du fichier font partie du formulaire principal
    (multipart), et « Retirer » est une case cochée jusqu'à l'enregistrement.
    S'y ajoute la lecture des arrêts sur la page choisie (stops_ocr.js). #}
-{% macro attachments_card(mission, positions, can_edit, form_mode=False) %}
+{# `embed` : la fiche est ouverte dans le panneau flottant d'une mission
+   liée — ajouter ou retirer une pièce jointe doit y ramener. #}
+{% macro attachments_card(mission, positions, can_edit, form_mode=False, embed=False) %}
 <div class="card" id="pieces-jointes">
   <h2>Pièces jointes <span style="font-weight:400; text-transform:none; letter-spacing:0;">(insérées dans le PDF final)</span></h2>
   {% for a in mission.attachments or [] %}
@@ -24,7 +26,7 @@
       <input type="checkbox" name="remove_attachment_ids[]" value="{{ a.id }}"> Retirer
     </label>
     {% elif can_edit %}
-    <form method="post" action="{{ url_for('missions.delete_attachment', mission_id=mission.id, attachment_id=a.id) }}"
+    <form method="post" action="{{ url_for('missions.delete_attachment', mission_id=mission.id, attachment_id=a.id, embed=1 if embed else none) }}"
           onsubmit="return confirm('Supprimer cette pièce jointe ?');">
       <button type="submit" class="btn btn--ghost btn--sm" style="color:var(--err-text)">Retirer</button>
     </form>
@@ -76,7 +78,7 @@
   {% if form_mode %}
   <div style="margin-top:10px;">{{ upload_fields }}</div>
   {% else %}
-  <form method="post" action="{{ url_for('missions.upload_attachment', mission_id=mission.id) }}" enctype="multipart/form-data"
+  <form method="post" action="{{ url_for('missions.upload_attachment', mission_id=mission.id, embed=1 if embed else none) }}" enctype="multipart/form-data"
         id="attach-form" style="margin-top:10px;">{{ upload_fields }}</form>
   {% endif %}
 

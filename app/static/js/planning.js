@@ -174,16 +174,23 @@
   function initSharePanel() {
     var select = document.getElementById("share-driver-select");
     var input = document.getElementById("share-link-input");
-    var webcal = document.getElementById("share-webcal-link");
     var copyBtn = document.getElementById("share-copy-btn");
     if (!select || !input) return;
     var row = input.closest("[data-feed-base]");
     var base = row ? row.getAttribute("data-feed-base") : input.value;
+    var googleBase = row ? row.getAttribute("data-google-base") || "" : "";
+    var google = document.getElementById("share-google-link");
+    var webcal = document.getElementById("share-webcal-link");
+    var ics = document.getElementById("share-ics-link");
 
+    // Un chauffeur choisi : le lien et les trois boutons portent tous le
+    // même flux, filtré sur lui.
     select.addEventListener("change", function () {
       var url = base + (select.value ? "&driver_id=" + encodeURIComponent(select.value) : "");
       input.value = url;
+      if (google) google.href = googleBase + encodeURIComponent(url);
       if (webcal) webcal.href = url.replace(/^https?:\/\//, "webcal://");
+      if (ics) ics.href = url;
     });
 
     if (copyBtn) {

@@ -373,18 +373,26 @@ def detail_mission(mission_id):
         abort(404)
     _require_mission_access(mission)
     emails = repo.list_email_log(mission_id)
-    # ?embed=1 : fiche ouverte dans le panneau flottant d'une mission liée,
-    # sans la barre de navigation (base.html) et en lecture seule —
-    # is_admin=False masque les boutons d'action, comme pour un chauffeur.
+    # ?embed=1 : fiche ouverte dans le panneau flottant d'une mission liée.
+    # Seule l'enveloppe de la page change (base.html : ni barre du haut, ni
+    # pied de page) — le contenu, lui, est la fiche entière, droits compris.
     embed = bool(request.args.get("embed"))
-    admin_view = is_admin() and not embed
-    linked = _linked_rows_for(repo.get_linked_mission_ids(mission_id)) if admin_view else []
+    linked = _linked_rows_for(repo.get_linked_mission_ids(mission_id)) if is_admin() else []
     return render_template("missions/detail.html", mission=mission, emails=emails,
                             positions=ATTACHMENT_POSITIONS,
                             billing_summary=_billing_summary(mission),
                             legs_summary=legs_time_summary(mission["legs"]),
                             legs_distance=legs_distance_summary(mission["legs"]),
-                            linked_missions=linked, embed=embed, is_admin=admin_view)
+                            linked_missions=linked, embed=embed)
+
+
+def _detail_url(mission_id, anchor=""):
+    """Adresse de la fiche après une action. `embed=1` est reconduit quand
+    l'action est partie du panneau flottant d'une mission liée : sans lui, la
+    barre de navigation réapparaîtrait à l'intérieur du panneau."""
+    url = url_for("missions.detail_mission", mission_id=mission_id,
+                  embed=1 if request.args.get("embed") else None)
+    return url + anchor
 
 
 # ---------------------------------------------------------- missions liées
@@ -450,7 +458,7 @@ def save_mission_links(mission_id):
         abort(404)
     repo.set_mission_links(mission_id, _parse_ids(request.form.getlist("linked_mission_ids[]")))
     flash("Missions liées enregistrées.", "success")
-    return redirect(url_for("missions.detail_mission", mission_id=mission_id) + "#missions-liees")
+    return redirect(_detail_url(mission_id, "#missions-liees"))
 
 
 @bp.route("/<int:mission_id>/modifier", methods=["GET", "POST"])
@@ -490,7 +498,7 @@ def save_mission_notes(mission_id):
         abort(404)
     repo.set_mission_notes(mission_id, request.form.get("notes", "").strip())
     flash("Notes enregistrées.", "success")
-    return redirect(url_for("missions.detail_mission", mission_id=mission_id) + "#notes")
+    return redirect(_detail_url(mission_id, "#notes"))
 
 
 @bp.route("/<int:mission_id>/supprimer", methods=["POST"])
@@ -598,13 +606,13 @@ def upload_attachment(mission_id):
         attachment = _read_attachment(request.form, request.files)
     except ValueError as e:
         flash(str(e), "error")
-        return redirect(url_for("missions.detail_mission", mission_id=mission_id))
+        return redirect(_detail_url(mission_id))
     if attachment is None:
         flash("Aucun fichier sélectionné.", "error")
-        return redirect(url_for("missions.detail_mission", mission_id=mission_id))
+        return redirect(_detail_url(mission_id))
     repo.add_attachment(mission_id, *attachment)
     flash("Pièce jointe ajoutée.", "success")
-    return redirect(url_for("missions.detail_mission", mission_id=mission_id))
+    return redirect(_detail_url(mission_id))
 
 
 @bp.route("/<int:mission_id>/pieces-jointes/<int:attachment_id>/supprimer", methods=["POST"])
@@ -613,7 +621,7 @@ def delete_attachment(mission_id, attachment_id):
     if att and att["mission_id"] == mission_id:
         repo.delete_attachment(attachment_id)
         flash("Pièce jointe supprimée.", "success")
-    return redirect(url_for("missions.detail_mission", mission_id=mission_id))
+    return redirect(_detail_url(mission_id))
 
 
 @bp.route("/<int:mission_id>/email", methods=["GET", "POST"])

@@ -137,7 +137,9 @@
            data-url="{{ url_for('clients.quick_create_client') }}">
         <div class="form-grid">
           <div class="field"><label>Nom du client *</label><input type="text" id="nc-name"></div>
-          <div class="field"><label>Adresse</label><input type="text" id="nc-address"></div>
+          <div class="field"><label>Adresse</label>
+            <div class="addr-field"><input type="text" id="nc-address" autocomplete="off"></div>
+          </div>
           <div class="field"><label>Code postal</label><input type="text" id="nc-postal-code"></div>
           <div class="field"><label>Ville</label><input type="text" id="nc-city"></div>
           <div class="field"><label>Téléphone / Email</label><input type="text" id="nc-phone"></div>
@@ -372,6 +374,7 @@
      doit trouver google.maps.places/DistanceMatrixService déjà prêts. #}
   <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&language=fr&region=FR"></script>
   {% endif %}
+  <script src="{{ url_for('static', filename='js/address_autocomplete.js') }}"></script>
   <script src="{{ url_for('static', filename='js/mission_form.js') }}"></script>
   <script src="{{ url_for('static', filename='js/stops_ocr.js') }}"></script>
 {% endblock %}

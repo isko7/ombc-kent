@@ -3,8 +3,13 @@
    la référence quand plusieurs OM sont ouverts côte à côte. #}
 {% block title %}{{ mission.mission_name or mission.reference }} — {{ mission.driver.last_name }} {{ mission.driver.first_name }}{% endblock %}
 {% block content %}
-  {# Pas dans le panneau d'une mission liée : « Aperçu PDF » y reste un lien. #}
-  {% if not embed %}{% include "missions/_pdf_tools.html" %}{% endif %}
+  {% include "missions/_pdf_tools.html" %}
+  {# Dans le panneau flottant d'une mission liée, la fiche est entière : ce
+     qui la quitte (modifier, dupliquer, envoyer, supprimer) s'ouvre dans un
+     nouvel onglet plutôt que dans le panneau — ou, pire, à la place de la
+     page en cours de saisie. Ce qui reste sur la fiche (notes, pièces
+     jointes, liens) revient dans le panneau, voir missions._detail_url. #}
+  {% set out = '_blank' if embed else '_self' %}
   <div class="card mission-hero">
     <div class="mission-hero__main">
       <div class="ref">{{ mission.reference }}</div>
@@ -19,17 +24,17 @@
       {% endif %}
       {% if is_admin %}
       <div class="btn-row">
-        <a href="{{ url_for('missions.edit_mission', mission_id=mission.id) }}" class="btn btn--secondary">Modifier</a>
-        <form method="post" action="{{ url_for('missions.duplicate_mission', mission_id=mission.id) }}" style="margin:0;">
+        <a href="{{ url_for('missions.edit_mission', mission_id=mission.id) }}" target="{{ out }}" class="btn btn--secondary">Modifier</a>
+        <form method="post" action="{{ url_for('missions.duplicate_mission', mission_id=mission.id) }}" target="{{ out }}" style="margin:0;">
           <button type="submit" class="btn btn--secondary">⧉ Dupliquer</button>
         </form>
-        <form method="post" action="{{ url_for('missions.create_return_mission', mission_id=mission.id) }}" style="margin:0;">
+        <form method="post" action="{{ url_for('missions.create_return_mission', mission_id=mission.id) }}" target="{{ out }}" style="margin:0;">
           <button type="submit" class="btn btn--secondary">↩ Créer le retour</button>
         </form>
         {# Les deux envois ferment la rangée, réduits à leur icône : bleu
            pour Randstad, rouge pour le chauffeur — les couleurs des deux
            indicateurs d'envoi affichés au-dessus. #}
-        <a href="{{ url_for('missions.bulk_email', mission_ids=mission.id) }}"
+        <a href="{{ url_for('missions.bulk_email', mission_ids=mission.id) }}" target="{{ out }}"
            class="btn btn--blue btn--icon" title="Envoyer à Randstad" aria-label="Envoyer à Randstad">
           <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"
                fill="none" stroke="currentColor" stroke-width="2"
@@ -37,7 +42,7 @@
             <path d="M21 3 10.5 13.5M21 3l-6.5 18-4-8-8-4L21 3z"/>
           </svg>
         </a>
-        <a href="{{ url_for('missions.email_mission', mission_id=mission.id) }}"
+        <a href="{{ url_for('missions.email_mission', mission_id=mission.id) }}" target="{{ out }}"
            class="btn btn--primary btn--icon" title="Envoyer par email au chauffeur"
            aria-label="Envoyer par email au chauffeur">
           <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"
@@ -51,8 +56,10 @@
     </div>
     {# Documents : coin supérieur droit de la carte. #}
     <div class="mission-hero__docs">
+      {# Dans le panneau, l'aperçu reste un lien vers un nouvel onglet : une
+         visionneuse flottante s'y retrouverait à l'étroit. #}
       <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id, inline=1) }}" target="_blank" class="btn btn--secondary btn--sm"
-         data-pdf-preview data-pdf-title="Aperçu PDF — {{ mission.mission_name or mission.reference }}">👁 Aperçu PDF</a>
+         {% if not embed %}data-pdf-preview data-pdf-title="Aperçu PDF — {{ mission.mission_name or mission.reference }}"{% endif %}>👁 Aperçu PDF</a>
       <a href="{{ url_for('missions.mission_pdf', mission_id=mission.id) }}" class="btn btn--secondary btn--sm">⬇ Télécharger PDF</a>
       <a href="{{ url_for('missions.mission_bc_pdf', mission_id=mission.id) }}" class="btn btn--secondary btn--sm"
          title="Billet collectif seul, sans l'OM ni les pièces jointes">⬇ Télécharger BC</a>
@@ -87,7 +94,7 @@
     </summary>
     <div class="notes-card__body">
       {% if is_admin %}
-      <form method="post" action="{{ url_for('missions.save_mission_notes', mission_id=mission.id) }}">
+      <form method="post" action="{{ url_for('missions.save_mission_notes', mission_id=mission.id, embed=1 if embed else none) }}">
         <textarea name="notes" rows="5" placeholder="Notes diverses sur cette mission…">{{ mission.notes or '' }}</textarea>
         <div class="btn-row">
           <button type="submit" class="btn btn--secondary btn--sm">Enregistrer les notes</button>
@@ -166,12 +173,12 @@
   </div>
 
   {% from "missions/_attachments.html" import attachments_card %}
-  {{ attachments_card(mission, positions, is_admin) }}
+  {{ attachments_card(mission, positions, is_admin, embed=embed) }}
 
   {% if is_admin %}
   {% from "missions/_linked_missions.html" import linked_missions_card, linked_missions_overlays %}
   {{ linked_missions_card(linked_missions, mission.id, mission.mission_name) }}
-  {{ linked_missions_overlays(url_for('missions.save_mission_links', mission_id=mission.id)) }}
+  {{ linked_missions_overlays(url_for('missions.save_mission_links', mission_id=mission.id, embed=1 if embed else none)) }}
   {% endif %}
 
   {% if emails and is_admin %}
@@ -202,7 +209,7 @@
     <pre id="billing-summary" class="billing-summary">{{ billing_summary }}</pre>
   </div>
 
-  <form method="post" action="{{ url_for('missions.delete_mission', mission_id=mission.id) }}"
+  <form method="post" action="{{ url_for('missions.delete_mission', mission_id=mission.id) }}" target="{{ out }}"
         onsubmit="return confirm('Supprimer définitivement cet ordre de mission ?');">
     <button type="submit" class="btn btn--danger">Supprimer cet ordre de mission</button>
   </form>

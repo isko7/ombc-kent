@@ -16,12 +16,14 @@ Aucune dépendance supplémentaire : urllib de la stdlib, comme le reste
 des appels sortants de l'application.
 """
 import json
+import re
 import urllib.parse
 import urllib.request
 from datetime import datetime
+from math import asin, cos, radians, sin, sqrt
 
 from app.config import COMPANY, TOMTOM_API_KEY
-from app.utils import is_depot
+from app.utils import _fold, is_depot
 
 BAN_URL = "https://api-adresse.data.gouv.fr/search/"
 TOMTOM_ROUTE_URL = "https://api.tomtom.com/routing/1/calculateRoute/{coords}/json"
@@ -82,20 +84,132 @@ def _geocode_tomtom(query):
     return pos["lat"], pos["lon"]
 
 
+# En dessous de ce score, la BAN n'a pas vraiment reconnu l'adresse — elle
+# renvoie quand même son moins mauvais résultat, parfois à l'autre bout du
+# pays.
+BAN_SCORE_MIN = 0.6
+
+
+def _ban_search(query, **extra):
+    """Résultats de la BAN, du meilleur au moins bon : point, score, commune
+    et nature du lieu (housenumber, street, municipality…)."""
+    params = {"q": query, "limit": 5}
+    params.update(extra)
+    found = []
+    for feature in _get_json(BAN_URL + "?" + urllib.parse.urlencode(params)).get("features") or []:
+        lon, lat = feature["geometry"]["coordinates"]
+        props = feature["properties"]
+        found.append({
+            "point": (lat, lon),
+            "score": props.get("score") or 0.0,
+            "city": props.get("city") or props.get("name") or "",
+            "kind": props.get("type") or "",
+        })
+    return found
+
+
+def _tomtom_place(query):
+    """Recherche TomTom, sans faire échouer l'appelant si elle est
+    indisponible (pas de clé, service injoignable) : None dans ce cas."""
+    try:
+        return _geocode_tomtom(query)
+    except RoutingError:
+        return None
+
+
 def geocode(query):
-    """Adresse libre -> (lat, lon). Lève RoutingError si rien ne matche."""
-    query = normalize_place(query)
-    if not query:
+    """Libellé de trajet d'un OM (« VILLE, adresse ») -> (lat, lon). Lève
+    RoutingError si ni la BAN ni TomTom ne reconnaissent le lieu."""
+    place = normalize_place(query)
+    if not place:
         raise RoutingError("adresse vide")
-    url = BAN_URL + "?" + urllib.parse.urlencode({"q": query, "limit": 1})
-    features = _get_json(url).get("features") or []
-    if features:
-        lon, lat = features[0]["geometry"]["coordinates"]
-        return lat, lon
-    fallback = _geocode_tomtom(query)
+    found = _ban_search(place, limit=1)
+    if found:
+        return found[0]["point"]
+    fallback = _geocode_tomtom(place)
     if fallback:
         return fallback
-    raise RoutingError(f"lieu introuvable : « {query} »")
+    raise RoutingError(f"lieu introuvable : « {place} »")
+
+
+# --------------------- adresse saisie à la main (écran Plan de Ramassage)
+# La BAN répond toujours quelque chose, même quand elle n'a pas compris, et
+# son classement peut surprendre : « Bonneval » lui vaut une rue de La
+# Teste-de-Buch (Gironde) avant la commune de Bonneval (28), et « 3 rue des
+# Fontaines, Luce » une rue de Lucy (76). Sur une tournée, un arrêt géocodé
+# à 400 km fausse tout l'ordre de passage — d'où les garde-fous ci-dessous.
+MINOR_WORDS = {"de", "du", "des", "la", "le", "les", "l", "d", "et", "a", "au", "aux"}
+ABBREVIATIONS = {"st": "saint", "ste": "sainte", "sts": "saints", "stes": "saintes"}
+
+
+def _name_key(text):
+    """Les mots qui comptent pour comparer deux noms de lieu : sans accents
+    ni ponctuation, sans code postal ni petits mots, « ST » valant
+    « SAINT ». Même principe que la vérification des adresses lues sur un
+    plan de ramassage (static/js/stops_ocr.js)."""
+    words = re.split(r"[\s'’,-]+", _fold(re.sub(r"\d+", " ", text or "")))
+    keys = [ABBREVIATIONS.get(w, w) for w in (re.sub(r"[^a-z]", "", word) for word in words)]
+    return " ".join(k for k in keys if k and k not in MINOR_WORDS)
+
+
+def _requested_city(address):
+    """Commune visée par une adresse saisie : ce qui suit la dernière virgule
+    (« 3 rue des Fontaines, Lucé »), ou ce qui suit le code postal
+    (« Place des Épars 28000 Chartres »). Vide si l'adresse n'en nomme
+    aucune — il n'y a alors rien à vérifier."""
+    if "," in address:
+        return address.rsplit(",", 1)[1].strip()
+    match = re.search(r"\b\d{5}\b\s*(.+)$", address)
+    return match.group(1).strip() if match else ""
+
+
+def geocode_address(query):
+    """Adresse en ordre naturel (« 12 rue X, Chartres ») -> (lat, lon).
+
+    Les adresses de l'écran Plan de Ramassage viennent de l'autocomplétion
+    BAN), donc déjà dans le bon ordre : leur appliquer le ré-ordonnancement
+    de normalize_place() les casserait. Seul « Dépôt KENT » reste traduit en
+    adresse de l'entreprise. On retient, dans l'ordre :
+
+    1. la commune exactement nommée, si c'est tout ce que l'adresse dit ;
+    2. le meilleur résultat situé dans la commune demandée — ou, si
+       l'adresse n'en nomme aucune, le meilleur résultat s'il est sûr ;
+    3. l'avis de la recherche TomTom, qui connaît les lieux que la BAN
+       ignore (gares, mairies, aéroports) ;
+    4. à défaut, la commune demandée : le bon village vaut mieux qu'une rue
+       homonyme à l'autre bout du pays ;
+    5. faute de mieux, le premier résultat de la BAN.
+    """
+    place = (query or "").strip()
+    if is_depot(place):
+        place = normalize_place(place)
+    if not place:
+        raise RoutingError("adresse vide")
+
+    found = _ban_search(place)
+    wanted = _name_key(place)
+    for match in found:
+        if match["kind"] == "municipality" and _name_key(match["city"]) == wanted:
+            return match["point"]
+
+    city = _requested_city(place)
+    if city:
+        for match in found:
+            if _name_key(match["city"]) == _name_key(city):
+                return match["point"]
+    elif found and found[0]["score"] >= BAN_SCORE_MIN:
+        return found[0]["point"]
+
+    fallback = _tomtom_place(place)
+    if fallback:
+        return fallback
+    if city:
+        towns = _ban_search(city, type="municipality", limit=1)
+        if towns:
+            return towns[0]["point"]
+    if found:
+        return found[0]["point"]
+    raise RoutingError(f"lieu introuvable : « {place} »")
 
 
 def _datetime_param(mission_date, time):
@@ -216,3 +330,106 @@ def build_driver_itinerary_url(legs):
     if waypoints:
         params["waypoints"] = "|".join(waypoints)
     return "https://www.google.com/maps/dir/?" + urllib.parse.urlencode(params, safe="|")
+
+
+# ------------------------------------------- tournée : ordre le plus court
+# Écran Plan de Ramassage : remettre une liste d'adresses dans l'ordre qui raccourcit
+# le trajet. Rien n'est imposé — ni le premier arrêt, ni le dernier : le seul
+# critère est la longueur totale. C'est le repli de l'optimisation Google Maps
+# du navigateur : il ne coûte aucun appel de plus que le géocodage (donc
+# aucune clé) et raisonne à vol d'oiseau, ce qui suffit à trouver le bon
+# enchaînement d'une tournée de ramassage. Les kilomètres réels, eux, viennent
+# de Google quand son itinéraire routier est disponible.
+EARTH_RADIUS_KM = 6371.0
+
+# Nombre d'ordres de départ affinés par la recherche locale. Celle-ci ne sort
+# pas d'un minimum local : repartir de plusieurs ordres différents (les
+# meilleurs du plus proche voisin) et garder le meilleur résultat vaut bien
+# mieux qu'un seul essai, pour un temps de calcul qui reste négligeable.
+IMPROVED_STARTS = 5
+
+
+def haversine_km(a, b):
+    """Distance à vol d'oiseau entre deux points (lat, lon), en km."""
+    lat1, lon1, lat2, lon2 = radians(a[0]), radians(a[1]), radians(b[0]), radians(b[1])
+    h = sin((lat2 - lat1) / 2) ** 2 + cos(lat1) * cos(lat2) * sin((lon2 - lon1) / 2) ** 2
+    return 2 * EARTH_RADIUS_KM * asin(sqrt(h))
+
+
+def tour_legs_km(points):
+    """Longueur de chaque étape, pour des points déjà dans l'ordre de passage."""
+    return [haversine_km(points[i], points[i + 1]) for i in range(len(points) - 1)]
+
+
+def _nearest_neighbour(dist, n, start):
+    """Un premier ordre : depuis `start`, on saute chaque fois au point non
+    encore visité le plus proche."""
+    free = [i for i in range(n) if i != start]
+    order = [start]
+    while free:
+        nearest = min(free, key=lambda i: dist[order[-1]][i])
+        free.remove(nearest)
+        order.append(nearest)
+    return order
+
+
+def _variants(order):
+    """Tous les remaniements d'un ordre de passage, un par un. Deux familles,
+    complémentaires : renverser un tronçon (2-opt, qui défait les croisements)
+    et déplacer un groupe de 1 à 3 arrêts ailleurs, dans un sens ou dans
+    l'autre (Or-opt, qui déplace une grappe d'arrêts voisins)."""
+    last = len(order) - 1
+    for i in range(0, last + 1):
+        for j in range(i + 1, last + 1):
+            yield order[:i] + order[i:j + 1][::-1] + order[j + 1:]
+    for size in (1, 2, 3):
+        for i in range(0, last - size + 2):
+            segment, rest = order[i:i + size], order[:i] + order[i + size:]
+            for pos in range(0, len(rest) + 1):
+                yield rest[:pos] + segment + rest[pos:]
+                if size > 1:
+                    yield rest[:pos] + segment[::-1] + rest[pos:]
+
+
+def _improve(order, length):
+    """Recherche locale : on garde tout remaniement qui raccourcit le trajet,
+    et on recommence tant qu'il y a à gagner. Renvoie (ordre, longueur)."""
+    best = length(order)
+    improved = True
+    while improved:
+        improved = False
+        # Les remaniements d'une passe sont ceux de l'ordre du début de passe
+        # (le générateur en garde une copie) : chacun reste une permutation
+        # complète, et n'est retenu que s'il bat le meilleur en cours.
+        for candidate in _variants(order):
+            value = length(candidate)
+            if value < best - 1e-9:
+                order, best, improved = candidate, value, True
+    return order, best
+
+
+def shortest_tour_order(points):
+    """Indices de `points` réordonnés pour que le trajet soit le plus court.
+
+    Aucun arrêt n'est imposé à un bout ou à l'autre : le calcul choisit aussi
+    par où commencer et par où finir. Deux temps — un premier ordre grossier
+    (plus proche voisin, essayé depuis chaque arrêt possible, plus l'ordre de
+    saisie), puis une recherche locale qui le raccourcit (voir _improve). Sur
+    une tournée (quelques dizaines d'arrêts) le résultat est l'optimum ou tout
+    près, pour un temps de calcul négligeable — là où une résolution exacte
+    exploserait.
+    """
+    n = len(points)
+    if n < 3:
+        return list(range(n))
+
+    dist = [[haversine_km(a, b) for b in points] for a in points]
+
+    def length(seq):
+        return sum(dist[seq[i]][seq[i + 1]] for i in range(len(seq) - 1))
+
+    candidates = [_nearest_neighbour(dist, n, start) for start in range(n)]
+    candidates.append(list(range(n)))
+    candidates.sort(key=length)
+    results = [_improve(c, length) for c in candidates[:IMPROVED_STARTS]]
+    return min(results, key=lambda r: r[1])[0]

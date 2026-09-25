@@ -687,6 +687,20 @@ function initEmissionDatePreview() {
   render();
 }
 
+// Adresse du client créé à la volée : même recherche que la fiche client
+// (KentAddress), qui remplit aussi le code postal et la ville.
+function initNewClientAddress(fields) {
+  if (!window.KentAddress || !fields.address) return;
+  KentAddress.attach(fields.address, {
+    provider: () => addressProvider(),
+    onPick: (item) => item.details().then((full) => {
+      fields.address.value = full.street || item.label;
+      if (full.postcode) fields.postal_code.value = full.postcode;
+      if (full.city) fields.city.value = full.city;
+    }),
+  });
+}
+
 function initNewClient() {
   const box = document.getElementById("new-client-box");
   const toggle = document.getElementById("new-client-toggle");
@@ -701,6 +715,7 @@ function initNewClient() {
     city: document.getElementById("nc-city"),
     phone: document.getElementById("nc-phone"),
   };
+  initNewClientAddress(fields);
 
   const close = () => {
     box.hidden = true;
